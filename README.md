@@ -1,6 +1,6 @@
 ![A single round cookie with a soft, slightly crumbly texture, topped with blue candy pieces and silver sprinkles. The cookie rests on a bed of shredded coconut, creating a wintry, festive atmosphere. No text is present. The overall tone alludes to winter, a frozen atmosphere.](https://user-images.githubusercontent.com/6014923/165900996-4726d38f-3c7c-4932-8d2e-f98bed93a836.png)
 
-![Version](https://img.shields.io/badge/version-2.052.8-blue)
+![Version](https://img.shields.io/badge/version-2.058.0-blue)
 ![License](https://img.shields.io/github/license/erbkaiser/FrozenCookies)
 [![GitHub issues](https://img.shields.io/github/issues/erbkaiser/FrozenCookies?label=issues)](https://github.com/erbkaiser/FrozenCookies/issues)
 [![Last commit](https://img.shields.io/github/last-commit/erbkaiser/FrozenCookies?label=last%20commit)](https://github.com/erbkaiser/FrozenCookies/commits/main)
@@ -36,8 +36,8 @@ An automated Cookie Clicker tool.
 
 ## Compatibility
 
-**Current version:** erb-2.052.8  
-Supports: Cookie Clicker web version 2.052 and Steam version 2.053
+**Current version:** erb-2.058.0  
+Supports: Cookie Clicker web and Steam version 2.058
 
 FrozenCookies works with most other mods, including [CCSE](https://github.com/klattmose/klattmose.github.io/tree/master/CookieClicker).  
 It is likely **not compatible** with other automation mods or auto-clickers.
@@ -112,6 +112,11 @@ Click the button to open the FrozenCookies menu, where you can configure setting
 
 <details>
 <summary>Click to expand!</summary>
+
+2026 Aug 23
+
+-   Version bumped to 2.058.0
+-   Updated compatibility to Cookie Clicker version 2.058
 
 2025 Jul 26
 

@@ -1,5 +1,5 @@
 // Global Variables
-var lastCompatibleVersion = 2.052;
+var lastCompatibleVersion = 2.058;
 if (Game.version > lastCompatibleVersion) {
     console.log(
         "WARNING: The Cookie Clicker version is newer than this version of Frozen Cookies."
@@ -24,7 +24,7 @@ var baseUrl =
 var FrozenCookies = {
     baseUrl: baseUrl,
     branch: "erb-",
-    version: "2.052.8", // This should match the version in README.md and Steam info.txt
+    version: "2.058.0", // This should match the version in README.md and Steam info.txt
 };
 
 // Load external libraries and FC scripts in order
