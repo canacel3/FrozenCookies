@@ -18,7 +18,7 @@ An automated Cookie Clicker tool.
 
 -   **Steam:** Subscribe on [Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=2816199538)
 -   **Web:** Paste this in the console:  
-    `Game.LoadMod("https://github.erbkaiser.com/FrozenCookies/frozen_cookies.js");`
+    `Game.LoadMod("https://canacel3.github.io/FrozenCookies/frozen_cookies.js");`
 -   **Bookmarklet/Userscript:** See 'How to use' below for details.
 
 ## Table of Contents
@@ -57,7 +57,7 @@ Click the button to open the FrozenCookies menu, where you can configure setting
     2.  Restart or refresh Cookie Clicker.
     3.  Enable Frozen Cookies in 'Manage mods' under Options.
 -   **Manual Install:**
-    1.  Download the Steam folder from [here](https://erbkaiser.github.io/FrozenCookies/Steam/).
+    1.  Download the Steam folder from [here](https://canacel3.github.io/FrozenCookies/Steam/).
     2.  Place the `FrozenCookies` folder into your `mods/local` directory.
     3.  Remove or disable any other FrozenCookies variants.
     4.  Restart or refresh Cookie Clicker.
@@ -69,26 +69,24 @@ Click the button to open the FrozenCookies menu, where you can configure setting
 2. Go to the Console tab.
 3. Paste and run:
     ```js
-    Game.LoadMod("https://github.erbkaiser.com/FrozenCookies/frozen_cookies.js");
+    Game.LoadMod("https://canacel3.github.io/FrozenCookies/frozen_cookies.js");
     ```
 4. You should see a confirmation message in the console.
 5. You might need to enable pasting in the browser console first, it will tell you if that is the case
-6. Some net nanny programs may block my website. In that case, try to load from
-   **Game.LoadMod("https://erbkaiser.github.io/FrozenCookies/frozen_cookies.js");**. If
-   that also fails, contact your internet administrator and ask them to unblock
-   github.erbkaiser.com
+6. If a net nanny program blocks the site, contact your internet administrator and
+   ask them to unblock canacel3.github.io
 
 ### Bookmarklet
 
 1. Copy the **contents** (not the URL) of
-   [fc_bookmarklet_loader.js](https://github.erbkaiser.com/FrozenCookies/fc_bookmarklet_loader.js).
+   [fc_bookmarklet_loader.js](https://canacel3.github.io/FrozenCookies/fc_bookmarklet_loader.js).
 2. Create a new bookmark and paste the code as its URL.
 3. Open Cookie Clicker and click the bookmark.
 
 ### Userscript
 
 1. Install [Tampermonkey for Chrome](https://chrome.google.com/webstore/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo?hl=en) or [Tampermonkey for Firefox](https://addons.mozilla.org/en-US/firefox/addon/tampermonkey/).
-2. Visit [fc_userscript_loader.user.js](https://github.erbkaiser.com/FrozenCookies/fc_userscript_loader.user.js).
+2. Visit [fc_userscript_loader.user.js](https://canacel3.github.io/FrozenCookies/fc_userscript_loader.user.js).
 3. Click 'Install' in the upper right.
 4. Open Cookie Clicker.
 
