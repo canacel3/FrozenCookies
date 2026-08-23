@@ -142,6 +142,7 @@ function registerMod(mod_id = "frozen_cookies") {
                 if (hard) emptyCaches();
                 // if the user is starting fresh, code will likely need to be called to reinitialize some historical data here as well
             });
+            Game.registerHook("logic", autoStockAction); // auto stock trading (gated on the autoStock toggle)
             /*  other hooks that can be used
                   Game.registerHook('logic', function () {   // called every logic tick. seems to correspond with fps
                   });

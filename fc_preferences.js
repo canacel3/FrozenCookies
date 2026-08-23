@@ -177,6 +177,11 @@ FrozenCookies.preferenceValues = {
         default: 0,
         extras: '<a class="option" id="minLoanMult" onclick="updateLoanMultMin(\'minLoanMult\');">x${minLoanMult} minimum Frenzy</a>',
     },
+    autoStock: {
+        hint: "Auto-trade stocks: buy at very low prices, sell on a downtrend.",
+        display: ["Auto Stock Trading OFF", "Auto Stock Trading ON"],
+        default: 0,
+    },
 
     // Pantheon options
     worshipOptions: {
