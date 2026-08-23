@@ -3777,3 +3777,9 @@ autoCookie = function () {
     // Default behavior
     _oldAutoCookie();
 };
+
+// Disable the reward cookie autobuy patch: it forces building purchases to hit
+// round numbers (e.g. 100/150 of each) to unlock reward cookies even when
+// Autobuy is off. Revert autoCookie to the original, unpatched behavior.
+// (Remove the line below to re-enable the reward cookie patch above.)
+autoCookie = _oldAutoCookie;
