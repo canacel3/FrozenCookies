@@ -210,6 +210,7 @@ function setOverrides(gameSaveData) {
     FrozenCookies.lastBaseCPS = Game.cookiesPs;
     FrozenCookies.lastCookieCPS = 0;
     FrozenCookies.lastUpgradeCount = 0;
+    FrozenCookies.lastBuyBulk = Game.buyBulk;
     FrozenCookies.currentBank = {
         cost: 0,
         efficiency: 0,
@@ -1855,6 +1856,34 @@ function nextChainedPurchase(recalculate) {
     return FrozenCookies.caches.nextChainedPurchase;
 }
 
+// Number of buildings the "Next" recommendation should evaluate at once.
+// When Bulk Next Buy is on and the game is in buy mode, use the selected bulk
+// (Game.buyBulk = 1/10/100); otherwise evaluate a single building as before.
+function nextBuyBulkAmount() {
+    if (FrozenCookies.bulkNextBuy && Game.buyMode == 1) {
+        return Game.buyBulk || 1;
+    }
+    return 1;
+}
+
+// Total cost of buying `count` of a building from its current amount.
+// Prefers the game's own getSumPrice (handles all discounts); falls back to
+// summing successive prices if that API is unavailable.
+function bulkBuildingCost(building, count) {
+    if (count <= 1) return building.getPrice();
+    if (typeof building.getSumPrice === "function") {
+        return building.getSumPrice(count);
+    }
+    var total = 0;
+    var origAmount = building.amount;
+    for (var k = 0; k < count; k++) {
+        total += building.getPrice();
+        building.amount += 1;
+    }
+    building.amount = origAmount;
+    return total;
+}
+
 function buildingStats(recalculate) {
     if (recalculate) {
         if (blacklist[FrozenCookies.blacklist].buildings === true) {
@@ -1896,12 +1925,14 @@ function buildingStats(recalculate) {
                 Game.Objects["You"].amount >= FrozenCookies.orbMax
             )
                 buildingBlacklist.push(19);
+            var bulkAmount = nextBuyBulkAmount();
             FrozenCookies.caches.buildings = Game.ObjectsById.map(function (
                 current,
                 index
             ) {
                 if (_.contains(buildingBlacklist, current.id)) return null;
                 var currentBank = bestBank(0).cost;
+                var cost = bulkBuildingCost(current, bulkAmount);
                 var baseCpsOrig = baseCps();
                 var cpsOrig = effectiveCps(Math.min(Game.cookies, currentBank)); // baseCpsOrig + gcPs(cookieValue(Math.min(Game.cookies, currentBank))) + baseClickingCps(FrozenCookies.autoClick * FrozenCookies.cookieClickSpeed);
                 var existingAchievements = Object.values(
@@ -1909,14 +1940,14 @@ function buildingStats(recalculate) {
                 ).map(function (item, i) {
                     return item.won;
                 });
-                buildingToggle(current);
+                buildingToggle(current, undefined, bulkAmount);
                 var baseCpsNew = baseCps();
                 var cpsNew = effectiveCps(currentBank); // baseCpsNew + gcPs(cookieValue(currentBank)) + baseClickingCps(FrozenCookies.autoClick * FrozenCookies.cookieClickSpeed);
-                buildingToggle(current, existingAchievements);
+                buildingToggle(current, existingAchievements, bulkAmount);
                 var deltaCps = cpsNew - cpsOrig;
                 var baseDeltaCps = baseCpsNew - baseCpsOrig;
                 var efficiency = purchaseEfficiency(
-                    current.getPrice(),
+                    cost,
                     deltaCps,
                     baseDeltaCps,
                     cpsOrig
@@ -1926,7 +1957,8 @@ function buildingStats(recalculate) {
                     efficiency: efficiency,
                     base_delta_cps: baseDeltaCps,
                     delta_cps: deltaCps,
-                    cost: current.getPrice(),
+                    cost: cost,
+                    amount: bulkAmount,
                     purchase: current,
                     type: "building",
                 };
@@ -2340,16 +2372,17 @@ function upgradeToggle(upgrade, achievements, reverseFunctions) {
     return reverseFunctions;
 }
 
-function buildingToggle(building, achievements) {
+function buildingToggle(building, achievements, count) {
+    count = count || 1; // number of buildings to simulate (bulk-aware)
     const oldHighest = Game.cookiesPsRawHighest; // Save current value before simulating
     if (!achievements) {
-        building.amount += 1;
-        building.bought += 1;
-        Game.BuildingsOwned += 1;
+        building.amount += count;
+        building.bought += count;
+        Game.BuildingsOwned += count;
     } else {
-        building.amount -= 1;
-        building.bought -= 1;
-        Game.BuildingsOwned -= 1;
+        building.amount -= count;
+        building.bought -= count;
+        Game.BuildingsOwned -= count;
         Game.AchievementsOwned = 0;
         achievements.forEach(function (won, index) {
             var achievement = Game.AchievementsById[index];
@@ -2628,6 +2661,12 @@ function updateCaches() {
         if (FrozenCookies.lastUpgradeCount != currentUpgradeCount) {
             FrozenCookies.recalculateCaches = true;
             FrozenCookies.lastUpgradeCount = currentUpgradeCount;
+        }
+
+        // Bulk Next Buy: refresh the recommendation when the selected bulk changes
+        if (FrozenCookies.bulkNextBuy && FrozenCookies.lastBuyBulk != Game.buyBulk) {
+            FrozenCookies.recalculateCaches = true;
+            FrozenCookies.lastBuyBulk = Game.buyBulk;
         }
         recalcCount += 1;
     } while (FrozenCookies.recalculateCaches && recalcCount < 10);

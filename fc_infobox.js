@@ -308,6 +308,11 @@ function updateTimers() {
             ),
         });
     }
+    // When Bulk Next Buy is on, show the recommended quantity (e.g. "Next: Cursor (x10)")
+    var nextQtySuffix =
+        nextPurchase().type == "building" && nextPurchase().amount > 1
+            ? " (x" + nextPurchase().amount + ")"
+            : "";
     if (
         purchaseTotal > 0 &&
         nextPurchase().type == "building" &&
@@ -318,7 +323,8 @@ function updateTimers() {
             c1: "rgba(17, 17, 17, 1)",
             name:
                 "Next: " +
-                decodeHtml(Game.foolObjects[nextPurchase().purchase.name].name),
+                decodeHtml(Game.foolObjects[nextPurchase().purchase.name].name) +
+                nextQtySuffix,
             display: timeDisplay(
                 divCps(
                     Math.max(purchaseTotal + bankTotal - Game.cookies, 0),
@@ -330,7 +336,10 @@ function updateTimers() {
         t_draw.push({
             f_percent: purchaseCompletion,
             c1: "rgba(17, 17, 17, 1)",
-            name: "Next: " + decodeHtml(nextPurchase().purchase.name),
+            name:
+                "Next: " +
+                decodeHtml(nextPurchase().purchase.name) +
+                nextQtySuffix,
             display: timeDisplay(
                 divCps(
                     Math.max(purchaseTotal + bankTotal - Game.cookies, 0),

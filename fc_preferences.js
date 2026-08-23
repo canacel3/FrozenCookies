@@ -40,6 +40,11 @@ FrozenCookies.preferenceValues = {
         display: ["AutoBuy OFF", "AutoBuy ON"],
         default: 0,
     },
+    bulkNextBuy: {
+        hint: "Base the 'Next' recommendation on your selected bulk (1/10/100). ⚠️ Meant for manual buying; not recommended with AutoBuy ON.",
+        display: ["Bulk Next Buy OFF", "Bulk Next Buy ON"],
+        default: 0,
+    },
     otherUpgrades: {
         hint: "Buy upgrades that don't boost CpS directly.",
         display: ["Other Upgrades OFF", "Other Upgrades ON"],
