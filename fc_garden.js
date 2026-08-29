@@ -246,6 +246,7 @@ function gardenBuildPlan() {
     var plan = {
         claims: {},
         active: [], // [{phase, cells}] used by the soil logic
+        deferred: {}, // "x,y" -> true: claimed but not planted yet (short-lived partner waits)
         weedActive: false,
         gridActive: false,
         jqb: null,
@@ -378,6 +379,33 @@ function gardenBuildPlan() {
         (phase.zone || []).forEach(function (c) {
             claim(c.x, c.y, "zone", null, phase.id);
         });
+        // Defer planting short-lived parents while a slow co-parent is still
+        // far from mature: mutations need both parents mature at once, and
+        // e.g. thumbcorn would die ~5 times over while cronerice grows for
+        // P6. Wait until this planting will still be reasonably young (age
+        // <=70) when the slowest partner matures. Fixture tiles (trio/shelf)
+        // plant on their own terms.
+        cells.forEach(function (c) {
+            var mine = plan.claims[c.x + "," + c.y];
+            if (!mine || mine.phase !== phase.id) return;
+            var partnerTicks = 0;
+            cells.forEach(function (o) {
+                if (o.key === c.key) return;
+                var p = G.plants[o.key];
+                var avg = p.ageTick + p.ageTickR / 2;
+                var t = G.plot[o.y][o.x];
+                if (t[0] === 0) {
+                    partnerTicks = Math.max(partnerTicks, p.mature / avg);
+                } else if (t[0] - 1 === p.id && t[1] < p.mature) {
+                    partnerTicks = Math.max(partnerTicks, (p.mature - t[1]) / avg);
+                }
+            });
+            var self = G.plants[c.key];
+            var selfAvg = self.ageTick + self.ageTickR / 2;
+            if (partnerTicks >= 20 && selfAvg * partnerTicks > 70) {
+                plan.deferred[c.x + "," + c.y] = true;
+            }
+        });
         plan.active.push({ phase: phase, cells: cells });
     });
 
@@ -491,6 +519,7 @@ function gardenPlantPass(plan) {
     Object.keys(plan.claims).forEach(function (id) {
         var c = plan.claims[id];
         if (c.kind !== "plant") return;
+        if (plan.deferred[id]) return;
         var xy = id.split(",");
         var x = Number(xy[0]);
         var y = Number(xy[1]);
