@@ -3398,6 +3398,18 @@ function FCStart() {
         clearInterval(FrozenCookies.autoclickBot);
         FrozenCookies.autoclickBot = 0;
     }
+    if (FrozenCookies.frenzyClickBot) {
+        clearInterval(FrozenCookies.frenzyClickBot);
+        FrozenCookies.frenzyClickBot = 0;
+    }
+    if (FrozenCookies.autoFrenzyBot) {
+        clearInterval(FrozenCookies.autoFrenzyBot);
+        FrozenCookies.autoFrenzyBot = 0;
+    }
+    if (FrozenCookies.gardenBot) {
+        clearInterval(FrozenCookies.gardenBot);
+        FrozenCookies.gardenBot = 0;
+    }
     if (FrozenCookies.statBot) {
         clearInterval(FrozenCookies.statBot);
         FrozenCookies.statBot = 0;
@@ -3704,6 +3716,10 @@ function FCStart() {
             autoCycliusAction,
             FrozenCookies.frequency * 600 // 1 minute
         );
+    }
+
+    if (FrozenCookies.autoGarden && typeof autoGarden === "function") {
+        FrozenCookies.gardenBot = setInterval(autoGarden, 5000);
     }
 
     if (FrozenCookies.recommendedSettings) {

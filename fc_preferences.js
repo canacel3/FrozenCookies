@@ -187,6 +187,15 @@ FrozenCookies.preferenceValues = {
         display: ["Auto Stock Trading OFF", "Auto Stock Trading ON"],
         default: 0,
     },
+    autoGarden: {
+        hint: "Auto-run the garden: unlock all 34 seeds, harvest Juicy Queenbeets, sacrifice for 10 lumps, repeat. ⚠️ Takes over the whole plot.",
+        display: [
+            "Auto Garden OFF",
+            "Auto Garden FULL LOOP",
+            "Auto Garden VERIFY (no sacrifice)",
+        ],
+        default: 0,
+    },
 
     // Pantheon options
     worshipOptions: {

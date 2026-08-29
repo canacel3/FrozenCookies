@@ -48,6 +48,7 @@ var script_list = [
     FrozenCookies.baseUrl + "/fc_gods.js", // gods minigame and dragon options
     FrozenCookies.baseUrl + "/fc_spells.js", // spells minigame and autocasting
     FrozenCookies.baseUrl + "/fc_bank.js", // bank minigame
+    FrozenCookies.baseUrl + "/fc_garden.js", // garden minigame automation
     FrozenCookies.baseUrl + "/fc_button.js", // button to open the Frozen Cookies menu
     FrozenCookies.baseUrl + "/fc_infobox.js", // infobox
 ];

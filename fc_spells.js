@@ -1372,6 +1372,12 @@ function auto100ConsistencyComboAction() {
             return;
 
         case 3: // Check for whiskerbloom (14) and if not found, plant it
+            if (FrozenCookies.autoGarden) {
+                // Auto Garden owns the plot; skip the whiskerbloom step so the
+                // combo doesn't wreck the current breeding layout
+                auto100ConsistencyComboAction.state = 4;
+                return;
+            }
             if (G.plantsById[14].unlocked == 0) {
                 // Whiskerbloom seed unlocked
                 var whisk = false;
