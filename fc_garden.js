@@ -143,7 +143,8 @@ var gardenPhases = [
     { id: "P10-5", targets: ["cheapcap"],
         cells: gardenRow("crumbspore", 1, GARDEN_X_EVEN).concat(gardenRow("shimmerlily", 3, GARDEN_X_EVEN)),
         zone: gardenZoneRows([0, 2], GARDEN_X_ALL) },
-    { id: "P10-6", targets: ["doughshroom"],
+    // doughshroom needs crumbspore M x2 at once -> keep the generation in sync
+    { id: "P10-6", targets: ["doughshroom"], syncSpecies: "crumbspore",
         cells: gardenRow("crumbspore", 1, GARDEN_X_EVEN),
         zone: gardenZoneRows([0, 2], GARDEN_X_ALL) },
     { id: "P10-7", targets: ["foolBolete"],
@@ -158,7 +159,8 @@ var gardenPhases = [
     { id: "P11-1", targets: ["whiskerbloom"],
         cells: gardenRow("shimmerlily", 1, GARDEN_X_EVEN).concat(gardenRow("whiteChocoroot", 1, GARDEN_X_ODD)),
         zone: gardenZoneRows([0, 2], GARDEN_X_ALL) },
-    { id: "P11-2", targets: ["nursetulip"],
+    // nursetulip needs whiskerbloom M x2 at once -> keep the generation in sync
+    { id: "P11-2", targets: ["nursetulip"], syncSpecies: "whiskerbloom",
         cells: gardenRow("whiskerbloom", 1, GARDEN_X_ALL),
         zone: gardenZoneRows([0, 2], GARDEN_X_ALL) },
     { id: "P11-3", targets: ["chimerose"],
@@ -406,6 +408,22 @@ function gardenBuildPlan() {
                 plan.deferred[c.x + "," + c.y] = true;
             }
         });
+        // Recipes needing two mature plants of the SAME species drift out of
+        // phase if each death is replanted on its own (a fresh plant matures
+        // right when the survivors die, so pairs are never jointly mature).
+        // Wait for the whole group to die, then replant it as one generation.
+        if (phase.syncSpecies) {
+            var anyAlive = cells.some(function (c) {
+                return c.key === phase.syncSpecies &&
+                    G.plot[c.y][c.x][0] - 1 === G.plants[c.key].id;
+            });
+            if (anyAlive) {
+                cells.forEach(function (c) {
+                    if (c.key !== phase.syncSpecies) return;
+                    if (!G.plot[c.y][c.x][0]) plan.deferred[c.x + "," + c.y] = true;
+                });
+            }
+        }
         plan.active.push({ phase: phase, cells: cells });
     });
 
