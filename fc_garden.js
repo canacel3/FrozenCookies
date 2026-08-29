@@ -351,9 +351,14 @@ function gardenBuildPlan() {
         if (phase.targets.every(have)) return; // done (unlocked or sprouted)
         if (phase.weed) {
             plan.weedActive = true;
-            for (var wy = 0; wy < 6; wy++) {
-                for (var wx = 4; wx < 6; wx++) {
-                    claim(wx, wy, "weed", null, phase.id);
+            // The x4-5 spawn corridor is only needed while meddleweed itself
+            // is locked (the first weed of a cycle must spawn naturally);
+            // once unlocked we sow weeds directly instead.
+            if (!gardenUnlocked("meddleweed")) {
+                for (var wy = 0; wy < 6; wy++) {
+                    for (var wx = 4; wx < 6; wx++) {
+                        claim(wx, wy, "weed", null, phase.id);
+                    }
                 }
             }
             return;
@@ -376,6 +381,23 @@ function gardenBuildPlan() {
         plan.active.push({ phase: phase, cells: cells });
     });
 
+    // Once meddleweed is unlocked, don't wait for natural spawns: sow it on
+    // every safe tile and farm it at age 84 (harvest drops roll the same for
+    // sown and spawned weeds). Runs after the phase loop so lanes, fillers and
+    // fixtures keep priority; the safety rule keeps weeds away from anything
+    // contaminable.
+    if (plan.weedActive && gardenUnlocked("meddleweed")) {
+        for (var my = 0; my < 6; my++) {
+            for (var mx = 0; mx < 6; mx++) {
+                var mt = G.plot[my][mx];
+                if (mt[0] && G.plantsById[mt[0] - 1].key !== "meddleweed") continue;
+                if (gardenWeedFarmable(plan, mx, my)) {
+                    claim(mx, my, "plant", "meddleweed", "P3-sow");
+                }
+            }
+        }
+    }
+
     return plan;
 }
 
@@ -387,12 +409,12 @@ function gardenBuildPlan() {
 function gardenWeedFarmable(plan, x, y) {
     if (!plan.weedActive) return false;
     var cur = plan.claims[x + "," + y];
-    if (cur && cur.kind === "plant") return false;
+    if (cur && cur.kind === "plant" && cur.key !== "meddleweed") return false;
     return gardenNeighbors(x, y).every(function (c) {
         var t = G.plot[c.y][c.x];
         if (t[0] && G.plantsById[t[0] - 1].key !== "meddleweed") return false;
         var nc = plan.claims[c.x + "," + c.y];
-        return !(nc && nc.kind === "plant");
+        return !(nc && nc.kind === "plant" && nc.key !== "meddleweed");
     });
 }
 
