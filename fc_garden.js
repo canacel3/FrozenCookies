@@ -96,8 +96,17 @@ var gardenPhases = [
     { id: "P2", targets: ["cronerice"],
         cells: gardenRow("bakerWheat", 1, [0, 2]).concat(gardenRow("thumbcorn", 1, [1, 3])),
         zone: gardenZoneRows([0, 2], GARDEN_X_LEFT) },
-    // Weed farming for brown mold + crumbspore: keep x4-5 empty, harvest
-    // meddleweed right before it dies. Soil stays fertilizer while active.
+    // If bakeberry gets secured before cronerice, duplicate the P2 recipe on
+    // the freed lane 2: cronerice gates the whole midgame chain (P6-P9), and
+    // the weeds get their big window during its 74-tick maturation anyway,
+    // when both lanes are torn down and the board sits nearly empty.
+    { id: "P2b", targets: ["cronerice"], requireHave: ["bakeberry"],
+        cells: gardenRow("bakerWheat", 4, [0, 2]).concat(gardenRow("thumbcorn", 4, [1, 3])),
+        zone: gardenZoneRows([3, 5], GARDEN_X_LEFT) },
+    // Weed farming for brown mold + crumbspore: x4-5 stays reserved as a
+    // guaranteed spawn corridor, but weeds are farmed on any safe empty tile
+    // (see gardenWeedFarmable) - once the bakeberry filler retires, the freed
+    // rows open up more spawn tiles. Soil stays fertilizer while active.
     { id: "P3", targets: ["brownMold", "crumbspore"], weed: true },
     { id: "P4", targets: ["chocoroot", "whiteMildew"],
         cells: gardenRow("bakerWheat", 1, [0, 2]).concat(gardenRow("brownMold", 1, [1, 3])),
@@ -252,16 +261,36 @@ function gardenBuildPlan() {
         return !cur || (cur.kind === "plant" && cur.key === c.key);
     }
 
-    // Find a growing Juicy queenbeet (never removed; harvested at 85+ for a lump)
+    // One board scan: which species are present, and is a Juicy queenbeet
+    // growing (never removed; harvested at 85+ for a lump)?
+    var present = {};
     var jqbId = G.plants["queenbeetLump"].id;
     for (var jy = 0; jy < 6; jy++) {
         for (var jx = 0; jx < 6; jx++) {
-            if (G.plot[jy][jx][0] - 1 === jqbId) {
-                plan.jqb = { x: jx, y: jy, age: G.plot[jy][jx][1] };
+            var jt = G.plot[jy][jx];
+            if (!jt[0]) continue;
+            present[G.plantsById[jt[0] - 1].key] = true;
+            if (jt[0] - 1 === jqbId) {
+                plan.jqb = { x: jx, y: jy, age: jt[1] };
             }
         }
     }
+    plan.present = present;
 
+    // A target counts as secured once its seed is unlocked OR a specimen is
+    // already growing on the board: the cleanup pass protects locked species
+    // until harvest wherever they sit, so the parents can be released as soon
+    // as the mutation lands. This frees a lane during slow maturations
+    // (drowsyfern ~300 ticks, everdaisy ~250) and, for the bakeberry filler,
+    // clears the wheat so weed-spawn tiles open up while P3 is running. If the
+    // specimen is lost unharvested (e.g. harvestAll on ascension) the phase
+    // simply reactivates and the parents get rebuilt.
+    function have(key) {
+        return gardenUnlocked(key) || !!present[key];
+    }
+
+    // The JQB grid sticks to hard unlock state: queenbeets can't be planted
+    // from a mere sprout, and the sacrifice gate is unlock-based anyway.
     var preComplete = Object.keys(G.plants).every(function (key) {
         return GARDEN_LATE_SEEDS[key] || G.plants[key].unlocked;
     });
@@ -275,8 +304,9 @@ function gardenBuildPlan() {
         });
     }
 
-    // Fixture: cronerice trio, planted in P2 and kept until P10 is done
-    var p10Done = GARDEN_P10_TARGETS.every(gardenUnlocked);
+    // Fixture: cronerice trio, planted in P2 and kept until every P10 target
+    // is at least sprouted (frees lane 2 for P12b earlier)
+    var p10Done = GARDEN_P10_TARGETS.every(have);
     if (gardenUnlocked("cronerice") && !p10Done) {
         GARDEN_X_EVEN.forEach(function (x) {
             claim(x, 4, "plant", "cronerice", "trio");
@@ -318,7 +348,7 @@ function gardenBuildPlan() {
     }
 
     gardenPhases.forEach(function (phase) {
-        if (phase.targets.every(gardenUnlocked)) return; // done
+        if (phase.targets.every(have)) return; // done (unlocked or sprouted)
         if (phase.weed) {
             plan.weedActive = true;
             for (var wy = 0; wy < 6; wy++) {
@@ -328,6 +358,7 @@ function gardenBuildPlan() {
             }
             return;
         }
+        if (phase.requireHave && !phase.requireHave.every(have)) return; // conditional duplicate not warranted yet
         if (!phase.cells.every(function (c) { return gardenUnlocked(c.key); })) return; // parents not available yet
         var cells = phase.cells;
         if (phase.partial) {
@@ -346,6 +377,23 @@ function gardenBuildPlan() {
     });
 
     return plan;
+}
+
+// A meddleweed may be farmed (kept until age 84 for its seed drops) if the P3
+// weed hunt is on, the plan doesn't want its tile planted, and nothing
+// contaminable sits or is about to be planted next to it (5%/tick contamination
+// would endanger parents, the cronerice trio and growing sprouts). Everywhere
+// else weeds are removed on sight.
+function gardenWeedFarmable(plan, x, y) {
+    if (!plan.weedActive) return false;
+    var cur = plan.claims[x + "," + y];
+    if (cur && cur.kind === "plant") return false;
+    return gardenNeighbors(x, y).every(function (c) {
+        var t = G.plot[c.y][c.x];
+        if (t[0] && G.plantsById[t[0] - 1].key !== "meddleweed") return false;
+        var nc = plan.claims[c.x + "," + c.y];
+        return !(nc && nc.kind === "plant");
+    });
 }
 
 // Board processing, run once right after each garden tick.
@@ -369,11 +417,11 @@ function gardenCleanupPass(plan) {
                 continue;
             }
 
-            // Meddleweed: farm it in the weed zone, remove it on sight anywhere
-            // else (5%/tick contamination). Harvesting a mature one still rolls
-            // the seed drops either way.
+            // Meddleweed: farm it wherever it's safe during P3, remove it on
+            // sight anywhere else. Harvesting a mature one still rolls the
+            // seed drops either way.
             if (plant.key === "meddleweed") {
-                if (cur && cur.kind === "weed") {
+                if (gardenWeedFarmable(plan, x, y)) {
                     if (age >= GARDEN_MEDDLEWEED_HARVEST_AGE) {
                         G.harvest(x, y);
                         gardenLog("harvest", "meddleweed @" + x + "," + y + " (age " + Math.floor(age) + ")");
@@ -402,10 +450,21 @@ function gardenCleanupPass(plan) {
     }
 }
 
+// Seed prices scale with the current CpS, so only CpS-boosting buffs (Frenzy,
+// building specials...) inflate them. Debuffs like Clot or Cursed Finger make
+// seeds cheaper and click buffs don't affect the price at all, so those don't
+// block planting.
+function gardenBuffedPrices() {
+    return Object.keys(Game.buffs).some(function (name) {
+        var buff = Game.buffs[name];
+        return buff && buff.multCpS > 1;
+    });
+}
+
 // Plant whatever the plan wants into empty tiles. Runs every pass (planting is
 // allowed at any time), but never while a buff inflates plant prices.
 function gardenPlantPass(plan) {
-    if (Object.keys(Game.buffs).length !== 0) return;
+    if (gardenBuffedPrices()) return;
     var planted = false;
     Object.keys(plan.claims).forEach(function (id) {
         var c = plan.claims[id];
