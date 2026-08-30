@@ -390,21 +390,35 @@ function gardenBuildPlan() {
         cells.forEach(function (c) {
             var mine = plan.claims[c.x + "," + c.y];
             if (!mine || mine.phase !== phase.id) return;
-            var partnerTicks = 0;
+            // Per partner species the wait is until ANY ONE of its plants is
+            // mature (one mature partner keeps the recipe rolling, so a lone
+            // fresh replacement in an otherwise mature trio must not stall
+            // us); the cell then waits for the slowest such species. No flat
+            // floor: for extreme agers like greenRot (18.5 age/tick, ~5 tick
+            // lifespan) even a 15-tick wait wastes several generations.
+            var partnerBest = {};
             cells.forEach(function (o) {
                 if (o.key === c.key) return;
                 var p = G.plants[o.key];
                 var avg = p.ageTick + p.ageTickR / 2;
                 var t = G.plot[o.y][o.x];
-                if (t[0] === 0) {
-                    partnerTicks = Math.max(partnerTicks, p.mature / avg);
-                } else if (t[0] - 1 === p.id && t[1] < p.mature) {
-                    partnerTicks = Math.max(partnerTicks, (p.mature - t[1]) / avg);
+                var ticks;
+                if (t[0] - 1 === p.id) {
+                    ticks = t[1] >= p.mature ? 0 : (p.mature - t[1]) / avg;
+                } else {
+                    ticks = p.mature / avg; // empty or junk: a full regrow
                 }
+                if (!(o.key in partnerBest) || ticks < partnerBest[o.key]) {
+                    partnerBest[o.key] = ticks;
+                }
+            });
+            var partnerTicks = 0;
+            Object.keys(partnerBest).forEach(function (k) {
+                partnerTicks = Math.max(partnerTicks, partnerBest[k]);
             });
             var self = G.plants[c.key];
             var selfAvg = self.ageTick + self.ageTickR / 2;
-            if (partnerTicks >= 20 && selfAvg * partnerTicks > 70) {
+            if (selfAvg * partnerTicks > 70) {
                 plan.deferred[c.x + "," + c.y] = true;
             }
         });
