@@ -171,8 +171,8 @@ var gardenPhases = [
     // The elderwort shelf cells are listed as parents so the soil logic waits
     // for them to mature before switching to wood chips.
     { id: "P13", targets: ["ichorpuff"],
-        cells: gardenRow("crumbspore", 3, [1, 3]).concat(gardenRow("elderwort", 5, GARDEN_X_ALL)),
-        zone: gardenZoneRows([4], [0, 1, 2, 3, 4]) },
+        cells: gardenRow("crumbspore", 3, [1, 3, 5]).concat(gardenRow("elderwort", 5, GARDEN_X_ALL)),
+        zone: gardenZoneRows([4], GARDEN_X_ALL) },
     { id: "P14", targets: ["everdaisy"],
         cells: gardenRow("tidygrass", 3, GARDEN_X_ALL).concat(gardenRow("elderwort", 5, GARDEN_X_ALL)),
         zone: gardenZoneRows([4], [1, 2, 3, 4]) },

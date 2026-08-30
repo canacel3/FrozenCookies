@@ -206,7 +206,7 @@ x=4〜5列: [P3完了まで雑草の湧き保証回廊として予約(P1〜P4は
 - 完了: tidygrass解禁
 
 **P13: ichorpuff**
-- 植付: crumbspore @ (1,3),(3,3)(直交隣接に常駐elderwortが来ない位置)。変異マスはy=4行(常駐棚y=5のelderwortと(1,3)等のcrumbsporeの両方に隣接する(0..4,4))
+- 植付: crumbspore @ (1,3),(3,3),(5,3)(row 3はどのxでも常駐棚と直交隣接しない)。変異マスはy=4行の全6マス(常駐棚y=5のelderwortとrow 3のcrumbsporeの両方に隣接)
 - 前提: 常駐elderwort成熟済み
 - 完了: ichorpuff解禁
 
