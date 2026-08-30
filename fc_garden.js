@@ -122,24 +122,27 @@ var gardenPhases = [
     { id: "P10-2", targets: ["keenmoss"],
         cells: gardenRow("greenRot", 1, GARDEN_X_EVEN).concat(gardenRow("brownMold", 1, GARDEN_X_ODD)),
         zone: gardenZoneRows([0, 2], GARDEN_X_ALL) },
-    // Contamination-splitting layout: crumbspore/doughshroom parents keep even
-    // spacing on row 1, the partner goes to row 3 with no orthogonal contact.
+    // Contamination-splitting layout: the mushroom keeps even spacing on row
+    // 0, the partner sits on row 2 (two rows apart: no orthogonal contact),
+    // and the shared mutation row y=1 between them touches both species.
+    // Staying inside rows 0-2 leaves lane 2 (rows 3-5) free, so these run in
+    // parallel with P9/P12b instead of conflicting with their zones.
     { id: "P10-3", targets: ["wrinklegill"],
-        cells: gardenRow("crumbspore", 1, GARDEN_X_EVEN).concat(gardenRow("brownMold", 3, GARDEN_X_EVEN)),
-        zone: gardenZoneRows([0, 2], GARDEN_X_ALL) },
+        cells: gardenRow("crumbspore", 0, GARDEN_X_EVEN).concat(gardenRow("brownMold", 2, GARDEN_X_EVEN)),
+        zone: gardenZoneRows([1], GARDEN_X_ALL) },
     { id: "P10-4", targets: ["glovemorel"],
-        cells: gardenRow("crumbspore", 1, GARDEN_X_EVEN).concat(gardenRow("thumbcorn", 3, GARDEN_X_EVEN)),
-        zone: gardenZoneRows([0, 2], GARDEN_X_ALL) },
+        cells: gardenRow("crumbspore", 0, GARDEN_X_EVEN).concat(gardenRow("thumbcorn", 2, GARDEN_X_EVEN)),
+        zone: gardenZoneRows([1], GARDEN_X_ALL) },
     { id: "P10-5", targets: ["cheapcap"],
-        cells: gardenRow("crumbspore", 1, GARDEN_X_EVEN).concat(gardenRow("shimmerlily", 3, GARDEN_X_EVEN)),
-        zone: gardenZoneRows([0, 2], GARDEN_X_ALL) },
+        cells: gardenRow("crumbspore", 0, GARDEN_X_EVEN).concat(gardenRow("shimmerlily", 2, GARDEN_X_EVEN)),
+        zone: gardenZoneRows([1], GARDEN_X_ALL) },
     // doughshroom needs crumbspore M x2 at once -> keep the generation in sync
     { id: "P10-6", targets: ["doughshroom"], syncSpecies: "crumbspore",
         cells: gardenRow("crumbspore", 1, GARDEN_X_EVEN),
         zone: gardenZoneRows([0, 2], GARDEN_X_ALL) },
     { id: "P10-7", targets: ["foolBolete"],
-        cells: gardenRow("doughshroom", 1, GARDEN_X_EVEN).concat(gardenRow("greenRot", 3, GARDEN_X_EVEN)),
-        zone: gardenZoneRows([0, 2], GARDEN_X_ALL) },
+        cells: gardenRow("doughshroom", 0, GARDEN_X_EVEN).concat(gardenRow("greenRot", 2, GARDEN_X_EVEN)),
+        zone: gardenZoneRows([1], GARDEN_X_ALL) },
     { id: "P10-8", targets: ["wardlichen"],
         cells: gardenRow("cronerice", 4, GARDEN_X_EVEN).concat(gardenRow("whiteMildew", 4, [1, 3])),
         zone: gardenZoneRows([3, 5], GARDEN_X_ALL) },
