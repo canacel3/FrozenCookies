@@ -44,14 +44,16 @@ function gardenZoneRows(ys, xs) {
     return cells;
 }
 
-// Golden clover wiki layout (0-indexed), shrunk to rows y0-4 so the resident
-// elderwort shelf on y=5 survives.
+// Golden clover wiki layout (0-indexed), full 6-row version: by the time P15
+// runs, the elderwort shelf has retired (its consumers ichorpuff/everdaisy
+// are prerequisites of reaching P15), so the bottom row is free again.
 var GARDEN_P15_PLOTS = [
     [0, 0], [1, 0], [3, 0], [5, 0],
     [1, 1], [3, 1], [5, 1],
     [0, 2], [3, 2], [5, 2],
     [0, 3], [2, 3], [5, 3],
     [0, 4], [2, 4], [4, 4],
+    [0, 5], [2, 5], [4, 5], [5, 5],
 ];
 
 function gardenP15Cells() {
@@ -66,7 +68,7 @@ function gardenP15Zone() {
         used[c[0] + "," + c[1]] = 1;
     });
     var zone = [];
-    for (var y = 0; y < 5; y++) {
+    for (var y = 0; y < 6; y++) {
         for (var x = 0; x < 6; x++) {
             if (!used[x + "," + y]) zone.push({ x: x, y: y });
         }
@@ -293,8 +295,13 @@ function gardenBuildPlan() {
     var lateComplete = gardenUnlocked("queenbeetLump") && gardenUnlocked("duketater") && gardenUnlocked("shriekbulb");
     plan.gridActive = preComplete && (!lateComplete || !!plan.jqb);
 
-    // Fixture: resident elderwort shelf on y=5 (shrinks to (5,5) for the grid)
-    if (gardenUnlocked("elderwort")) {
+    // Fixture: resident elderwort shelf on y=5, kept while its consumers
+    // (P13 ichorpuff, P14 everdaisy) are still open; retiring it afterwards
+    // frees the bottom row for P15's full clover layout. The grid re-claims
+    // just (5,5) - a corner hole is useless anyway (only 3 neighbors) and a
+    // mature elderwort there ages the adjacent queenbeets 3% faster.
+    var shelfDone = have("ichorpuff") && have("everdaisy");
+    if (gardenUnlocked("elderwort") && (!shelfDone || plan.gridActive)) {
         (plan.gridActive ? [5] : GARDEN_X_ALL).forEach(function (x) {
             claim(x, 5, "plant", "elderwort", "shelf");
         });
