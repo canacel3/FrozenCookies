@@ -24,19 +24,9 @@ var GARDEN_LATE_SEEDS = {
     shriekbulb: 1,
 };
 
-// The nine P10 targets; the cronerice trio at (0,4),(2,4),(4,4) stays planted
-// until all of them are unlocked.
-var GARDEN_P10_TARGETS = [
-    "greenRot",
-    "keenmoss",
-    "wrinklegill",
-    "glovemorel",
-    "cheapcap",
-    "doughshroom",
-    "foolBolete",
-    "wardlichen",
-    "drowsyfern",
-];
+// The recipes that use cronerice as a parent; the trio at (0,4),(2,4),(4,4)
+// stays planted until all of them are secured, then hands lane 2 to P12b.
+var GARDEN_CRONERICE_USERS = ["gildmillet", "elderwort", "wardlichen"];
 
 function gardenRow(key, y, xs) {
     return xs.map(function (x) {
@@ -307,10 +297,10 @@ function gardenBuildPlan() {
         });
     }
 
-    // Fixture: cronerice trio, planted in P2 and kept until every P10 target
-    // is at least sprouted (frees lane 2 for P12b earlier)
-    var p10Done = GARDEN_P10_TARGETS.every(have);
-    if (gardenUnlocked("cronerice") && !p10Done) {
+    // Fixture: cronerice trio, planted in P2 and kept while any recipe that
+    // needs it is still open (regrowing it later would cost 74 ticks)
+    var cronericeDone = GARDEN_CRONERICE_USERS.every(have);
+    if (gardenUnlocked("cronerice") && !cronericeDone) {
         GARDEN_X_EVEN.forEach(function (x) {
             claim(x, 4, "plant", "cronerice", "trio");
         });
