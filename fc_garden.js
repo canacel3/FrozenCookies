@@ -254,6 +254,7 @@ function gardenBuildPlan() {
         deferred: {}, // "x,y" -> true: claimed but not planted yet (short-lived partner waits)
         weedActive: false,
         gridActive: false,
+        gridCull: false, // harvest leftover queenbeets so the grid replants in lockstep
         jqb: null,
     };
 
@@ -361,6 +362,29 @@ function gardenBuildPlan() {
                     claim(gx, gy, "plant", "queenbeet", "P16-grid");
                     gridCells.push({ key: "queenbeet", x: gx, y: gy });
                 }
+            }
+        }
+        // Generation sync: queenbeets are mature for only ~17 of their ~83
+        // ticks and the holes need 5-8 of them mature AT ONCE, so replanting
+        // each death individually drifts the cohort out of phase and kills
+        // the odds. Mid-generation gaps stay empty (a late plant could never
+        // mature before the cohort dies anyway); once more than half the
+        // generation is gone, the stragglers are culled and the whole grid
+        // replants in lockstep.
+        var qbAlive = 0;
+        var qbEmpty = 0;
+        gridCells.forEach(function (c) {
+            var t = G.plot[c.y][c.x];
+            if (t[0] - 1 === G.plants["queenbeet"].id) qbAlive++;
+            else if (t[0] === 0) qbEmpty++;
+        });
+        if (qbAlive > 0 && qbEmpty > 0) {
+            if (qbEmpty > qbAlive) {
+                plan.gridCull = true;
+            } else {
+                gridCells.forEach(function (c) {
+                    if (!G.plot[c.y][c.x][0]) plan.deferred[c.x + "," + c.y] = true;
+                });
             }
         }
         plan.active.push({ phase: { id: "P16-grid" }, cells: gridCells });
@@ -537,6 +561,14 @@ function gardenCleanupPass(plan) {
                     G.harvest(x, y);
                     gardenLog("harvest", plant.key + " @" + x + "," + y + " (new seed)");
                 }
+                continue;
+            }
+
+            // Grid generation reset: cull leftover queenbeets so the next
+            // generation starts in lockstep
+            if (plan.gridCull && plant.key === "queenbeet" && cur && cur.phase === "P16-grid") {
+                G.harvest(x, y);
+                gardenLog("thin", "queenbeet generation reset @" + x + "," + y);
                 continue;
             }
 
