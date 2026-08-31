@@ -182,6 +182,14 @@ var gardenPhases = [
     { id: "P16a", targets: ["queenbeet"],
         cells: gardenRow("bakeberry", 1, GARDEN_X_EVEN).concat(gardenRow("chocoroot", 1, GARDEN_X_ODD)),
         zone: gardenZoneRows([0, 2], GARDEN_X_ALL) },
+    // Everdaisy booster: with queenbeet secured, lane 1 has nothing left to
+    // hunt until everdaisy lands, so grow a second elderwort row on y=1.
+    // Once mature, (1,2)-(4,2) see 3 elderwort above + 3 tidygrass below,
+    // doubling the everdaisy mutation cells. `aux` keeps this slow row (8h+)
+    // out of the soil-maturity gate so it can't delay the wood chips switch.
+    { id: "P14b", targets: ["everdaisy"], aux: true,
+        cells: gardenRow("elderwort", 1, GARDEN_X_ALL),
+        zone: gardenZoneRows([2], [1, 2, 3, 4]) },
     // Background wheat lanes: bakeberry is only 0.1%, so keep wheat in any free
     // lane tiles from P1 all the way until it finally unlocks.
     { id: "fillerL1", targets: ["bakeberry"], partial: true,
@@ -576,6 +584,7 @@ function gardenSoilPass(plan) {
     var want = GARDEN_SOIL_FERTILIZER;
     if (!plan.weedActive && !plan.jqb && plan.active.length) {
         var allMature = plan.active.every(function (entry) {
+            if (entry.phase.aux) return true; // boosters never hold the soil back
             return entry.cells.every(function (c) {
                 var tile = G.plot[c.y][c.x];
                 var plant = G.plants[c.key];
