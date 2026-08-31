@@ -343,13 +343,10 @@ function gardenBuildPlan() {
                 });
             }
         }
-        // One maturing specimen per locked species is enough for the unlock;
-        // extra sprouts are only harvest insurance. A duplicate squatting one
-        // of the four 8-neighbor JQB holes costs 25% of the JQB odds for its
-        // whole maturation (~17h for duketater), so thin those; duplicates in
-        // the 5-neighbor holes or the corner stay. The eldest sprout of each
-        // species is always kept.
-        var jqbHoles = { "1,1": 1, "3,1": 1, "1,3": 1, "3,3": 1 };
+        // One maturing specimen per locked species is enough for the unlock:
+        // keep only the eldest sprout of each species (the fastest path to
+        // the seed) and thin every other duplicate so it stops squatting a
+        // mutation hole.
         var eldest = {};
         for (var ty = 0; ty < 6; ty++) {
             for (var tx = 0; tx < 6; tx++) {
@@ -365,7 +362,7 @@ function gardenBuildPlan() {
         for (var dy = 0; dy < 6; dy++) {
             for (var dx = 0; dx < 6; dx++) {
                 var dt = G.plot[dy][dx];
-                if (!dt[0] || !jqbHoles[dx + "," + dy]) continue;
+                if (!dt[0]) continue;
                 var dp = G.plantsById[dt[0] - 1];
                 if (dp.unlocked || dp.key === "queenbeetLump") continue;
                 var top = eldest[dp.key];
@@ -426,7 +423,11 @@ function gardenBuildPlan() {
             gridCells.forEach(function (c) {
                 var t = G.plot[c.y][c.x];
                 var outlier = t[0] - 1 === qbId && Math.abs(t[1] - plan.gridMedian) > 20;
-                if (t[0] === 0 || outlier) plan.deferred[c.x + "," + c.y] = true;
+                // A gap early in a generation can still join the cohort (the
+                // mature window is 20 age wide), so refill it; only hold the
+                // tile once the cohort is too old to catch up to.
+                var lateGap = t[0] === 0 && plan.gridMedian > 20;
+                if (lateGap || outlier) plan.deferred[c.x + "," + c.y] = true;
             });
         }
         plan.active.push({ phase: { id: "P16-grid" }, cells: gridCells });
