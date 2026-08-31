@@ -295,10 +295,13 @@ function gardenBuildPlan() {
         return gardenUnlocked(key) || !!present[key];
     }
 
-    // The JQB grid sticks to hard unlock state: queenbeets can't be planted
-    // from a mere sprout, and the sacrifice gate is unlock-based anyway.
-    var preComplete = Object.keys(G.plants).every(function (key) {
-        return GARDEN_LATE_SEEDS[key] || G.plants[key].unlocked;
+    // The grid starts once the pre-grid seeds are SECURED (unlocked or
+    // sprouted): the 27 queenbeets can grow out while e.g. the everdaisy
+    // sprout finishes its ~250-tick maturation, saving half a day per cycle.
+    // Queenbeet itself must be truly unlocked (it has to be plantable) and
+    // the sacrifice gate stays strictly unlock-based.
+    var preComplete = gardenUnlocked("queenbeet") && Object.keys(G.plants).every(function (key) {
+        return GARDEN_LATE_SEEDS[key] || have(key);
     });
     var lateComplete = gardenUnlocked("queenbeetLump") && gardenUnlocked("duketater") && gardenUnlocked("shriekbulb");
     plan.gridActive = preComplete && (!lateComplete || !!plan.jqb);
