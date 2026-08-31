@@ -256,6 +256,7 @@ function gardenBuildPlan() {
         gridActive: false,
         gridCull: false, // harvest leftover queenbeets so the grid replants in lockstep
         gridMedian: null, // cohort median age; beets >20 age away get culled
+        thinDup: {}, // "x,y" -> true: duplicate locked sprout squatting a JQB hole
         jqb: null,
     };
 
@@ -342,6 +343,38 @@ function gardenBuildPlan() {
                 });
             }
         }
+        // One maturing specimen per locked species is enough for the unlock;
+        // extra sprouts are only harvest insurance. A duplicate squatting one
+        // of the four 8-neighbor JQB holes costs 25% of the JQB odds for its
+        // whole maturation (~17h for duketater), so thin those; duplicates in
+        // the 5-neighbor holes or the corner stay. The eldest sprout of each
+        // species is always kept.
+        var jqbHoles = { "1,1": 1, "3,1": 1, "1,3": 1, "3,3": 1 };
+        var eldest = {};
+        for (var ty = 0; ty < 6; ty++) {
+            for (var tx = 0; tx < 6; tx++) {
+                var tt = G.plot[ty][tx];
+                if (!tt[0]) continue;
+                var tp = G.plantsById[tt[0] - 1];
+                if (tp.unlocked || tp.key === "queenbeetLump") continue;
+                if (!(tp.key in eldest) || tt[1] > eldest[tp.key].age) {
+                    eldest[tp.key] = { x: tx, y: ty, age: tt[1] };
+                }
+            }
+        }
+        for (var dy = 0; dy < 6; dy++) {
+            for (var dx = 0; dx < 6; dx++) {
+                var dt = G.plot[dy][dx];
+                if (!dt[0] || !jqbHoles[dx + "," + dy]) continue;
+                var dp = G.plantsById[dt[0] - 1];
+                if (dp.unlocked || dp.key === "queenbeetLump") continue;
+                var top = eldest[dp.key];
+                if (top && !(top.x === dx && top.y === dy)) {
+                    plan.thinDup[dx + "," + dy] = true;
+                }
+            }
+        }
+
         // The corner hole (5,5) only has 3 neighbors, so it can never roll
         // JQB (needs 8) or shriekbulb (needs 5): it's a duketater-only slot.
         // Once duketater is secured it becomes worthless as a hole, so farm a
@@ -566,6 +599,11 @@ function gardenCleanupPass(plan) {
 
             // Seeds we don't own yet: let them mature, then harvest to unlock
             if (!plant.unlocked) {
+                if (plan.thinDup[x + "," + y]) {
+                    G.harvest(x, y);
+                    gardenLog("thin", "duplicate " + plant.key + " sprout @" + x + "," + y + " (frees a JQB hole)");
+                    continue;
+                }
                 if (age >= plant.mature) {
                     G.harvest(x, y);
                     gardenLog("harvest", plant.key + " @" + x + "," + y + " (new seed)");
