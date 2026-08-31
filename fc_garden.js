@@ -255,6 +255,7 @@ function gardenBuildPlan() {
         weedActive: false,
         gridActive: false,
         gridCull: false, // harvest leftover queenbeets so the grid replants in lockstep
+        gridMedian: null, // cohort median age; beets >20 age away get culled
         jqb: null,
     };
 
@@ -371,21 +372,29 @@ function gardenBuildPlan() {
         // mature before the cohort dies anyway); once more than half the
         // generation is gone, the stragglers are culled and the whole grid
         // replants in lockstep.
-        var qbAlive = 0;
+        var qbId = G.plants["queenbeet"].id;
+        var qbAges = [];
         var qbEmpty = 0;
         gridCells.forEach(function (c) {
             var t = G.plot[c.y][c.x];
-            if (t[0] - 1 === G.plants["queenbeet"].id) qbAlive++;
+            if (t[0] - 1 === qbId) qbAges.push(t[1]);
             else if (t[0] === 0) qbEmpty++;
         });
-        if (qbAlive > 0 && qbEmpty > 0) {
-            if (qbEmpty > qbAlive) {
-                plan.gridCull = true;
-            } else {
-                gridCells.forEach(function (c) {
-                    if (!G.plot[c.y][c.x][0]) plan.deferred[c.x + "," + c.y] = true;
-                });
-            }
+        if (qbAges.length > 0 && qbEmpty > qbAges.length) {
+            plan.gridCull = true; // most of the generation is gone: full reset
+        } else if (qbAges.length > 0) {
+            // The mature window is ages 80-100, so a beet more than 20 age
+            // units from the cohort median can never be mature together with
+            // it: cull it (via gridMedian in the cleanup pass) and keep its
+            // tile empty until the next generation. Also heals cohorts
+            // planted before this rule existed.
+            qbAges.sort(function (a, b) { return a - b; });
+            plan.gridMedian = qbAges[Math.floor(qbAges.length / 2)];
+            gridCells.forEach(function (c) {
+                var t = G.plot[c.y][c.x];
+                var outlier = t[0] - 1 === qbId && Math.abs(t[1] - plan.gridMedian) > 20;
+                if (t[0] === 0 || outlier) plan.deferred[c.x + "," + c.y] = true;
+            });
         }
         plan.active.push({ phase: { id: "P16-grid" }, cells: gridCells });
     }
@@ -564,12 +573,16 @@ function gardenCleanupPass(plan) {
                 continue;
             }
 
-            // Grid generation reset: cull leftover queenbeets so the next
-            // generation starts in lockstep
-            if (plan.gridCull && plant.key === "queenbeet" && cur && cur.phase === "P16-grid") {
-                G.harvest(x, y);
-                gardenLog("thin", "queenbeet generation reset @" + x + "," + y);
-                continue;
+            // Grid generation management: full reset once most of the cohort
+            // is gone, plus culling of individual beets too far out of phase
+            // to ever share the cohort's mature window
+            if (plant.key === "queenbeet" && cur && cur.phase === "P16-grid") {
+                var outOfPhase = plan.gridMedian != null && Math.abs(age - plan.gridMedian) > 20;
+                if (plan.gridCull || outOfPhase) {
+                    G.harvest(x, y);
+                    gardenLog("thin", "queenbeet generation " + (plan.gridCull ? "reset" : "outlier") + " @" + x + "," + y);
+                    continue;
+                }
             }
 
             // Everything else survives only where the plan wants that species
