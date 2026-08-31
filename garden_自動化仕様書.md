@@ -223,9 +223,9 @@ x=4〜5列: [P3完了まで雑草の湧き保証回廊として予約(P1〜P4は
 
 **P16: queenbeet → JQB格子(duketater / shriekbulb / queenbeetLump)**
 1. queenbeet解禁: レーン1: bakeberry @ 偶数x / chocoroot @ 奇数x → 解禁
-2. (5,5)にelderwortを確保(角の穴は隣接3マスでJQB・shriekbulbに使えない死にマスのため。成熟elderwortなら隣接queenbeet 3本に老化+3%が付く)
+2. (5,5)の扱いは動的: **duketater未確保の間は第9の穴として開ける**(隣接3マスなのでduketater専用の抽選マス。未解禁duketaterが湧いて211tick居座っても最弱マスなので実害なし)。**duketater確保後はbakerWheatを植える**(穴としての価値がゼロになるため、成熟時CpS+1%のパッシブに転用。elderwortを置く案は、老化+3%が隣接queenbeetの寿命も縮めて同時成熟窓を削るため不採用)
 3. **格子植付**: queenbeet を「x,yがともに奇数の9マス」**以外の27マス**に植付(コスト60分CpS/本のためバフガード厳守・分割植付可)。9マスのうち(5,5)はelderwortを維持し、残り8マスが変異穴。開始条件は「late3種以外の全種が確保済み(解禁or芽)かつqueenbeet解禁」で、everdaisy等の芽が残っていても建設を始める(芽のマスは収穫まで避け、空き次第埋める)
-4. 変異穴8個の役割(自動判定不要、抽選は勝手に回る): ⑧=(1,1),(3,1),(1,3),(3,3)→JQB0.1%、⑤=(5,1),(5,3),(1,5),(3,5)→shriekbulb0.1%、全8マス→duketater0.1%
+4. 変異穴の役割(自動判定不要、抽選は勝手に回る): ⑧=(1,1),(3,1),(1,3),(3,3)→JQB0.1%、⑤=(5,1),(5,3),(1,5),(3,5)→shriekbulb0.1%、全穴→duketater0.1%((5,5)開放中は9個目のduketater穴が加わる)
 5. duketater/shriekbulbが未解禁のうちは湧いたら成熟まで待って収穫(解禁)。解禁済みなら即撤去してマスを空け直す
 6. **JQBが湧いたら**: 成熟まで平均1063tick。育成中は土を肥料に固定(§8)。隣接QBが枯れたマスにelderwortを植えて老化+3%/本を付与(最大8本)。**樹齢85以上100未満で必ず`G.harvest`**(自然死はランプなし)。収穫でランプ+1+種解禁
 - 完了: queenbeet / duketater / shriekbulb / queenbeetLump 解禁

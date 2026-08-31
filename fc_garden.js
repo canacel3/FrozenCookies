@@ -308,12 +308,10 @@ function gardenBuildPlan() {
 
     // Fixture: resident elderwort shelf on y=5, kept while its consumers
     // (P13 ichorpuff, P14 everdaisy) are still open; retiring it afterwards
-    // frees the bottom row for P15's full clover layout. The grid re-claims
-    // just (5,5) - a corner hole is useless anyway (only 3 neighbors) and a
-    // mature elderwort there ages the adjacent queenbeets 3% faster.
+    // frees the bottom row for P15's full clover layout.
     var shelfDone = have("ichorpuff") && have("everdaisy");
-    if (gardenUnlocked("elderwort") && (!shelfDone || plan.gridActive)) {
-        (plan.gridActive ? [5] : GARDEN_X_ALL).forEach(function (x) {
+    if (gardenUnlocked("elderwort") && !shelfDone && !plan.gridActive) {
+        GARDEN_X_ALL.forEach(function (x) {
             claim(x, 5, "plant", "elderwort", "shelf");
         });
     }
@@ -342,14 +340,21 @@ function gardenBuildPlan() {
                 });
             }
         }
-        // Queenbeet grid: plant everything except the 9 odd/odd tiles; (5,5)
-        // stays elderwort, the other 8 holes are the JQB/duketater/shriekbulb
-        // mutation slots.
+        // The corner hole (5,5) only has 3 neighbors, so it can never roll
+        // JQB (needs 8) or shriekbulb (needs 5): it's a duketater-only slot.
+        // Once duketater is secured it becomes worthless as a hole, so farm a
+        // Baker's wheat there for its +1% CpS passive instead.
+        if (have("duketater") && gardenUnlocked("bakerWheat")) {
+            claim(5, 5, "plant", "bakerWheat", "P16-cps");
+        }
+        // Queenbeet grid: plant everything except the 9 odd/odd tiles, the
+        // JQB/duketater/shriekbulb mutation slots ((5,5) may already be
+        // claimed as wheat above; first claim wins).
         var gridCells = [];
         for (var gy = 0; gy < 6; gy++) {
             for (var gx = 0; gx < 6; gx++) {
                 if (gx % 2 === 1 && gy % 2 === 1) {
-                    if (!(gx === 5 && gy === 5)) claim(gx, gy, "zone", null, "P16-grid");
+                    claim(gx, gy, "zone", null, "P16-grid");
                     continue;
                 }
                 if (freeFor({ x: gx, y: gy, key: "queenbeet" })) {
