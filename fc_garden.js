@@ -596,6 +596,10 @@ function gardenSoilPass(plan) {
             return entry.cells.every(function (c) {
                 var tile = G.plot[c.y][c.x];
                 var plant = G.plants[c.key];
+                // A protected sprout squatting the cell (e.g. everdaisy on a
+                // grid tile) can't be replaced for hours: don't let it delay
+                // wood chips for the parents that ARE in place.
+                if (tile[0] && !G.plantsById[tile[0] - 1].unlocked) return true;
                 return tile[0] - 1 === plant.id && tile[1] >= plant.mature;
             });
         });
