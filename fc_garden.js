@@ -698,12 +698,20 @@ function gardenSoilPass(plan) {
     if (!soil) return;
     // Soils unlock by lifetime harvest count (fertilizer at 50, wood chips at 300)
     if (typeof G.harvestsTotal === "number" && G.harvestsTotal < (soil.req || 0)) return;
-    // There is no askSoil API: the vanilla soil buttons just assign these
-    // fields (with the 10 minute cooldown), so do the same directly.
-    G.soil = want;
-    G.nextSoil = Date.now() + 1000 * 60 * 10;
-    G.toRebuild = true;
-    Game.recalculateGains = 1;
+    // There is no askSoil API. Prefer clicking the real soil button so the
+    // vanilla handler updates both the state and the UI highlight; fall back
+    // to assigning the fields directly (what the handler does) if the garden
+    // DOM hasn't been built yet.
+    var soilButton = typeof l === "function" ? l("gardenSoil-" + want) : null;
+    if (soilButton) {
+        soilButton.click();
+        if (G.soil !== want) return; // refused (e.g. a prompt); retry next pass
+    } else {
+        G.soil = want;
+        G.nextSoil = Date.now() + 1000 * 60 * 10;
+        G.toRebuild = true;
+        Game.recalculateGains = 1;
+    }
     gardenLog("soil", soil.name);
 }
 
