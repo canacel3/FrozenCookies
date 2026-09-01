@@ -698,9 +698,13 @@ function gardenSoilPass(plan) {
     if (!soil) return;
     // Soils unlock by lifetime harvest count (fertilizer at 50, wood chips at 300)
     if (typeof G.harvestsTotal === "number" && G.harvestsTotal < (soil.req || 0)) return;
-    G.askSoil(want);
-    Game.ConfirmPrompt();
-    if (G.soil === want) gardenLog("soil", soil.name);
+    // There is no askSoil API: the vanilla soil buttons just assign these
+    // fields (with the 10 minute cooldown), so do the same directly.
+    G.soil = want;
+    G.nextSoil = Date.now() + 1000 * 60 * 10;
+    G.toRebuild = true;
+    Game.recalculateGains = 1;
+    gardenLog("soil", soil.name);
 }
 
 function gardenSacrifice() {

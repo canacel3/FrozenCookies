@@ -26,7 +26,7 @@
 | 植付可否 | `G.canPlant(G.plants[key])` | クッキー残高チェック |
 | 収穫/撤去 | `G.harvest(x, y)` | 成熟前でも撤去に使う |
 | 全収穫 | `G.harvestAll()` | 原則使用しない(常駐枠を巻き込むため) |
-| 土変更 | `G.askSoil(id)` → 確認プロンプト | id: 0=Dirt 1=Fertilizer 2=Clay 3=Pebbles 4=Wood chips。`Date.now() >= G.nextSoil`のときのみ。UI経由(`l('gardenSoil-'+id).click()`)が安全 |
+| 土変更 | `G.soil = id; G.nextSoil = Date.now() + 10分` を直接代入(`askSoil`というAPIは**存在しない**。UIボタンのハンドラも同じ代入を行うだけ)。あわせて`G.toRebuild = true; Game.recalculateGains = 1` | id: 0=Dirt 1=Fertilizer 2=Clay 3=Pebbles 4=Wood chips。`Date.now() >= G.nextSoil` かつ 生涯収穫数`G.harvestsTotal >= soil.req`(肥料50/ウッドチップ300)のときのみ |
 | 次tick時刻 | `G.nextStep` | この直後に盤面処理を行う |
 | 解禁数 | `G.plantsUnlockedN` | 34で犠牲可能 |
 | 犠牲 | `G.askConvert()` → `Game.ConfirmPrompt()` | 種ログ初期化+ランプ10 |
