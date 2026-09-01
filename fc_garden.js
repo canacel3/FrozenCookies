@@ -684,6 +684,9 @@ function gardenSoilPass(plan) {
                 // grid tile) can't be replaced for hours: don't let it delay
                 // wood chips for the parents that ARE in place.
                 if (tile[0] && !G.plantsById[tile[0] - 1].unlocked) return true;
+                // Tiles intentionally held empty (generation-sync gaps,
+                // thinned duplicates) don't count as "still growing" either.
+                if (!tile[0] && plan.deferred[c.x + "," + c.y]) return true;
                 return tile[0] - 1 === plant.id && tile[1] >= plant.mature;
             });
         });
