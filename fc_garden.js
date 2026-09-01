@@ -695,7 +695,9 @@ function gardenSoilPass(plan) {
     if (G.soil === want) return;
     if (Date.now() < G.nextSoil) return;
     var soil = G.soilsById[want];
-    if (!soil || (soil.req || 0) > G.parent.level) return;
+    if (!soil) return;
+    // Soils unlock by lifetime harvest count (fertilizer at 50, wood chips at 300)
+    if (typeof G.harvestsTotal === "number" && G.harvestsTotal < (soil.req || 0)) return;
     G.askSoil(want);
     Game.ConfirmPrompt();
     if (G.soil === want) gardenLog("soil", soil.name);
