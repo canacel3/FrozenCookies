@@ -379,20 +379,36 @@ function gardenBuildPlan() {
         if (have("duketater") && gardenUnlocked("bakerWheat")) {
             claim(5, 5, "plant", "bakerWheat", "P16-cps");
         }
+        // Retirement: once a JQB is growing and duketater/shriekbulb are
+        // secured, the rest of the grid has nothing left to produce (the
+        // elderwort ring shares tiles with every other JQB hole, and the side
+        // holes only roll junk). Stop replanting queenbeets; each remaining
+        // one is harvested at maturity for its yield, and every freed tile
+        // (holes included) grows Baker's wheat for its +1% CpS passive.
+        plan.gridRetire = !!plan.jqb && have("duketater") && have("shriekbulb");
+
         // Queenbeet grid: plant everything except the 9 odd/odd tiles, the
         // JQB/duketater/shriekbulb mutation slots ((5,5) may already be
         // claimed as wheat above; first claim wins).
         var gridCells = [];
+        var qbId = G.plants["queenbeet"].id;
         for (var gy = 0; gy < 6; gy++) {
             for (var gx = 0; gx < 6; gx++) {
                 if (gx % 2 === 1 && gy % 2 === 1) {
-                    claim(gx, gy, "zone", null, "P16-grid");
+                    if (plan.gridRetire && gardenUnlocked("bakerWheat")) {
+                        claim(gx, gy, "plant", "bakerWheat", "P16-cps");
+                    } else {
+                        claim(gx, gy, "zone", null, "P16-grid");
+                    }
                     continue;
                 }
-                if (freeFor({ x: gx, y: gy, key: "queenbeet" })) {
-                    claim(gx, gy, "plant", "queenbeet", "P16-grid");
-                    gridCells.push({ key: "queenbeet", x: gx, y: gy });
+                if (plan.claims[gx + "," + gy]) continue; // JQB / ring / (5,5) wheat
+                if (plan.gridRetire && G.plot[gy][gx][0] - 1 !== qbId) {
+                    claim(gx, gy, "plant", "bakerWheat", "P16-cps");
+                    continue;
                 }
+                claim(gx, gy, "plant", "queenbeet", "P16-grid");
+                gridCells.push({ key: "queenbeet", x: gx, y: gy });
             }
         }
         // Generation sync: queenbeets are mature for only ~17 of their ~83
@@ -402,7 +418,14 @@ function gardenBuildPlan() {
         // mature before the cohort dies anyway); once more than half the
         // generation is gone, the stragglers are culled and the whole grid
         // replants in lockstep.
-        var qbId = G.plants["queenbeet"].id;
+        if (plan.gridRetire) {
+            // hold each retiring beet's tile for the pass it's harvested in;
+            // the next pass reclaims it as wheat
+            gridCells.forEach(function (c) {
+                plan.deferred[c.x + "," + c.y] = true;
+            });
+        }
+
         var qbAges = [];
         var qbEmpty = 0;
         gridCells.forEach(function (c) {
@@ -410,7 +433,9 @@ function gardenBuildPlan() {
             if (t[0] - 1 === qbId) qbAges.push(t[1]);
             else if (t[0] === 0) qbEmpty++;
         });
-        if (qbAges.length > 0 && qbEmpty > qbAges.length) {
+        if (plan.gridRetire) {
+            // no generation management while winding down
+        } else if (qbAges.length > 0 && qbEmpty > qbAges.length) {
             plan.gridCull = true; // most of the generation is gone: full reset
         } else if (qbAges.length > 0) {
             // The mature window is ages 80-100, so a beet more than 20 age
@@ -614,8 +639,17 @@ function gardenCleanupPass(plan) {
 
             // Grid generation management: full reset once most of the cohort
             // is gone, plus culling of individual beets too far out of phase
-            // to ever share the cohort's mature window
+            // to ever share the cohort's mature window. In retirement (JQB
+            // growing, duketater/shriekbulb secured) each beet is instead
+            // harvested at maturity for its yield and never replanted.
             if (plant.key === "queenbeet" && cur && cur.phase === "P16-grid") {
+                if (plan.gridRetire) {
+                    if (age >= plant.mature) {
+                        G.harvest(x, y);
+                        gardenLog("harvest", "retiring queenbeet @" + x + "," + y);
+                    }
+                    continue;
+                }
                 var outOfPhase = plan.gridMedian != null && Math.abs(age - plan.gridMedian) > 20;
                 if (plan.gridCull || outOfPhase) {
                     G.harvest(x, y);
