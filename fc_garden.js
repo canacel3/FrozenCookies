@@ -569,6 +569,25 @@ function gardenBuildPlan() {
     return plan;
 }
 
+// True if a contaminating plant at (x,y) would endanger a protected sprout:
+// an orthogonally adjacent locked plant that isn't itself contamination-immune
+// (crumbspore/doughshroom have noContam). The sprout is the goal and the
+// parent is replaceable, so such tiles are kept contaminator-free until the
+// sprout is harvested.
+function gardenContamRisk(x, y) {
+    var dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    for (var i = 0; i < dirs.length; i++) {
+        var nx = x + dirs[i][0];
+        var ny = y + dirs[i][1];
+        if (nx < 0 || nx > 5 || ny < 0 || ny > 5) continue;
+        var t = G.plot[ny][nx];
+        if (!t[0]) continue;
+        var p = G.plantsById[t[0] - 1];
+        if (!p.unlocked && p.key !== "crumbspore" && p.key !== "doughshroom") return true;
+    }
+    return false;
+}
+
 // A meddleweed may be farmed (kept until age 84 for its seed drops) if the P3
 // weed hunt is on, the plan doesn't want its tile planted, and nothing
 // contaminable sits or is about to be planted next to it (5%/tick contamination
@@ -637,6 +656,15 @@ function gardenCleanupPass(plan) {
                 continue;
             }
 
+            // A planted contaminator sitting next to a protected sprout
+            // would eat it at 3%/tick: pull the parent until the sprout is
+            // harvested (it gets replanted automatically afterwards)
+            if ((plant.key === "crumbspore" || plant.key === "doughshroom") && gardenContamRisk(x, y)) {
+                G.harvest(x, y);
+                gardenLog("thin", plant.key + " @" + x + "," + y + " (protecting an adjacent sprout)");
+                continue;
+            }
+
             // Grid generation management: full reset once most of the cohort
             // is gone, plus culling of individual beets too far out of phase
             // to ever share the cohort's mature window. In retirement (JQB
@@ -692,6 +720,7 @@ function gardenPlantPass(plan) {
         if (G.plot[y][x][0]) return;
         var plant = G.plants[c.key];
         if (!plant || !plant.unlocked || plant.plantable === false) return;
+        if ((c.key === "crumbspore" || c.key === "doughshroom") && gardenContamRisk(x, y)) return;
         if (!G.canPlant(plant)) return;
         G.seedSelected = plant.id;
         G.clickTile(x, y);
