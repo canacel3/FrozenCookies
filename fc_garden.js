@@ -283,6 +283,7 @@ function gardenBuildPlan() {
         claims: {},
         active: [], // [{phase, cells}] used by the soil logic
         deferred: {}, // "x,y" -> true: claimed but not planted yet (short-lived partner waits)
+        territory: {}, // "x,y" -> true: cells+zones of active phases, even lazily unclaimed ones
         weedActive: false,
         gridActive: false,
         gridCull: false, // harvest leftover queenbeets so the grid replants in lockstep
@@ -540,8 +541,22 @@ function gardenBuildPlan() {
             }
             options = options.filter(function (o) { return o.cells.every(freeFor); });
             if (!options.length) return; // every lane is held by an earlier phase
+            // Tiebreak: prefer the lane that overlaps other phases' territory
+            // (cells AND mutation rows, even lazily unclaimed ones) the least.
+            // Squeezing into a borrowed mutation row is a last resort - it
+            // ends in eviction and contamination wear - so a genuinely free
+            // lane always wins over the home lane of a busy one.
+            var overlap = function (o) {
+                var n = 0;
+                o.cells.concat(o.zone).forEach(function (c) {
+                    if (plan.territory[c.x + "," + c.y]) n++;
+                });
+                return n;
+            };
             options.sort(function (a, b) {
-                return a.cells.filter(blockedCell).length - b.cells.filter(blockedCell).length;
+                var d = a.cells.filter(blockedCell).length - b.cells.filter(blockedCell).length;
+                if (d) return d;
+                return overlap(a) - overlap(b);
             });
             cells = options[0].cells;
             zone = options[0].zone;
@@ -621,6 +636,9 @@ function gardenBuildPlan() {
                 claim(c.x, c.y, "zone", null, phase.id);
             });
         }
+        cells.concat(zone).forEach(function (c) {
+            plan.territory[c.x + "," + c.y] = true;
+        });
         plan.active.push({ phase: phase, cells: cells });
     });
 
@@ -829,22 +847,46 @@ function gardenPlantPass(plan) {
 function gardenSoilPass(plan) {
     var want = GARDEN_SOIL_FERTILIZER;
     if (!plan.weedActive && !plan.jqb && plan.active.length) {
-        var allMature = plan.active.every(function (entry) {
-            if (entry.phase.aux) return true; // boosters never hold the soil back
-            return entry.cells.every(function (c) {
+        // A slow locked sprout (elderwort/everdaisy/drowsyfern class, 100+
+        // ticks to mature) is almost always the cycle's gating chain: keep
+        // the fast fertilizer ticks for it. The grid runs its own economy.
+        var slowSprout = false;
+        if (!plan.gridActive) {
+            for (var sy = 0; sy < 6 && !slowSprout; sy++) {
+                for (var sx = 0; sx < 6; sx++) {
+                    var st = G.plot[sy][sx];
+                    if (!st[0]) continue;
+                    var sp = G.plantsById[st[0] - 1];
+                    if (sp.unlocked) continue;
+                    if (sp.mature / (sp.ageTick + sp.ageTickR / 2) > 100) {
+                        slowSprout = true;
+                        break;
+                    }
+                }
+            }
+        }
+        // Wood chips (x3 mutations, 5 min ticks) beat fertilizer as soon as
+        // ANY recipe is actually rolling: the roller gains x1.8 real-time,
+        // which outweighs the x1.67 growth slowdown of phases still maturing
+        // alongside. "Rolling" = every species of the recipe has at least one
+        // mature planted specimen (so held gaps or a squatted tile don't
+        // disqualify a working recipe, but a missing partner does).
+        var anyRolling = plan.active.some(function (entry) {
+            if (entry.phase.aux || !entry.cells.length) return false;
+            var okBySpecies = {};
+            entry.cells.forEach(function (c) {
                 var tile = G.plot[c.y][c.x];
                 var plant = G.plants[c.key];
-                // A protected sprout squatting the cell (e.g. everdaisy on a
-                // grid tile) can't be replaced for hours: don't let it delay
-                // wood chips for the parents that ARE in place.
-                if (tile[0] && !G.plantsById[tile[0] - 1].unlocked) return true;
-                // Tiles intentionally held empty (generation-sync gaps,
-                // thinned duplicates) don't count as "still growing" either.
-                if (!tile[0] && plan.deferred[c.x + "," + c.y]) return true;
-                return tile[0] - 1 === plant.id && tile[1] >= plant.mature;
+                if (!(c.key in okBySpecies)) okBySpecies[c.key] = false;
+                if (tile[0] - 1 === plant.id && tile[1] >= plant.mature) {
+                    okBySpecies[c.key] = true;
+                }
+            });
+            return Object.keys(okBySpecies).every(function (k) {
+                return okBySpecies[k];
             });
         });
-        if (allMature) want = GARDEN_SOIL_WOODCHIPS;
+        if (!slowSprout && anyRolling) want = GARDEN_SOIL_WOODCHIPS;
     }
     if (G.soil === want) return;
     if (Date.now() < G.nextSoil) return;
