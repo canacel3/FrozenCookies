@@ -182,12 +182,16 @@ var gardenPhases = [
     { id: "P14", targets: ["everdaisy"],
         cells: gardenRow("tidygrass", 3, GARDEN_X_ALL).concat(gardenRow("elderwort", 5, GARDEN_X_ALL)),
         zone: gardenZoneRows([4], [1, 2, 3, 4]) },
-    { id: "P15", targets: ["goldenClover"],
-        cells: gardenP15Cells(),
-        zone: gardenP15Zone() },
     { id: "P16a", targets: ["queenbeet"],
         cells: gardenRow("bakeberry", 1, GARDEN_X_EVEN).concat(gardenRow("chocoroot", 1, GARDEN_X_ODD)),
         zone: gardenZoneRows([0, 2], GARDEN_X_ALL) },
+    // Evaluated after P16a on purpose: the queenbeet hunt is a short, already
+    // -invested sprint whose sprout then frees the whole board for ~67 ticks
+    // - almost exactly goldenClover's expected hunt time - so P15 slots into
+    // that window instead of evicting a growing bakeberry row.
+    { id: "P15", targets: ["goldenClover"],
+        cells: gardenP15Cells(),
+        zone: gardenP15Zone() },
     // Everdaisy booster: with queenbeet secured, lane 1 has nothing left to
     // hunt until everdaisy lands, so grow a second elderwort row on y=1.
     // Once mature, (1,2)-(4,2) see 3 elderwort above + 3 tidygrass below,
