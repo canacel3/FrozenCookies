@@ -154,6 +154,12 @@ var gardenPhases = [
     { id: "P11-1", targets: ["whiskerbloom"],
         cells: gardenRow("shimmerlily", 1, GARDEN_X_EVEN).concat(gardenRow("whiteChocoroot", 1, GARDEN_X_ODD)),
         zone: gardenZoneRows([0, 2], GARDEN_X_ALL) },
+    // Lane-2 duplicate (same pattern as P2b/P12b): keeps the whiskerbloom
+    // hunt rolling when lane 1 is lent to a mushroom phase, and doubles it
+    // when both lanes are free.
+    { id: "P11-1b", targets: ["whiskerbloom"],
+        cells: gardenRow("shimmerlily", 4, GARDEN_X_EVEN).concat(gardenRow("whiteChocoroot", 4, GARDEN_X_ODD)),
+        zone: gardenZoneRows([3, 5], GARDEN_X_ALL) },
     // nursetulip needs whiskerbloom M x2 at once -> keep the generation in sync
     { id: "P11-2", targets: ["nursetulip"], syncSpecies: "whiskerbloom",
         cells: gardenRow("whiskerbloom", 1, GARDEN_X_ALL),
@@ -213,6 +219,17 @@ var gardenPhases = [
             .concat(gardenRow("bakerWheat", 5, GARDEN_X_EVEN)),
         zone: gardenZoneRows([3, 5], GARDEN_X_ALL) },
 ];
+
+// Lane-1 layouts (standard forms and the y0-2 contamination-split forms) may
+// relocate +3 rows onto lane 2 when their home tiles are claimed by another
+// phase or squatted by a protected sprout.
+gardenPhases.forEach(function (p) {
+    if (["P1", "P2", "P4", "P5", "P7", "P8", "P10-1", "P10-2", "P10-3", "P10-4",
+        "P10-5", "P10-6", "P10-7", "P10-9", "P11-1", "P11-2", "P11-3", "P12a",
+        "P16a"].indexOf(p.id) !== -1) {
+        p.shiftable = true;
+    }
+});
 
 function gardenUnlocked(key) {
     return !!(G.plants[key] && G.plants[key].unlocked);
@@ -493,17 +510,44 @@ function gardenBuildPlan() {
         if (phase.requireHave && !phase.requireHave.every(have)) return; // conditional duplicate not warranted yet
         if (!phase.cells.every(function (c) { return gardenUnlocked(c.key); })) return; // parents not available yet
         var cells = phase.cells;
+        var zone = phase.zone || [];
         if (phase.partial) {
             cells = cells.filter(freeFor);
             if (!cells.length) return;
-        } else if (!cells.every(freeFor)) {
-            return; // an earlier phase/fixture holds these tiles
+        } else {
+            // Lane switch: pick the variant (home lane 1, or mirrored onto
+            // lane 2 for shiftable layouts) whose tiles are free of claims,
+            // preferring the one with the fewest unplantable parent tiles -
+            // e.g. a drowsyfern maturing for 300 ticks on a greenRot cell
+            // sends the whole recipe to the other lane instead of running
+            // short-handed. Mirroring (y -> 5-y) rather than +3 keeps the
+            // contamination-split mushrooms on the outer edge row, away from
+            // the other lane's mutation rows.
+            var blockedCell = function (c) {
+                var t = G.plot[c.y][c.x];
+                if (t[0] > 0 && !G.plantsById[t[0] - 1].unlocked &&
+                    G.plantsById[t[0] - 1].key !== c.key) return true; // squatting sprout
+                if ((c.key === "crumbspore" || c.key === "doughshroom") &&
+                    gardenContamRisk(c.x, c.y)) return true; // contaminator can't plant here
+                return false;
+            };
+            var options = [{ cells: cells, zone: zone }];
+            if (phase.shiftable) {
+                options.push({
+                    cells: cells.map(function (c) { return { key: c.key, x: c.x, y: 5 - c.y }; }),
+                    zone: zone.map(function (c) { return { x: c.x, y: 5 - c.y }; }),
+                });
+            }
+            options = options.filter(function (o) { return o.cells.every(freeFor); });
+            if (!options.length) return; // every lane is held by an earlier phase
+            options.sort(function (a, b) {
+                return a.cells.filter(blockedCell).length - b.cells.filter(blockedCell).length;
+            });
+            cells = options[0].cells;
+            zone = options[0].zone;
         }
         cells.forEach(function (c) {
             claim(c.x, c.y, "plant", c.key, phase.id);
-        });
-        (phase.zone || []).forEach(function (c) {
-            claim(c.x, c.y, "zone", null, phase.id);
         });
         // Defer planting short-lived parents while a slow co-parent is still
         // far from mature: mutations need both parents mature at once, and
@@ -562,6 +606,21 @@ function gardenBuildPlan() {
                 });
             }
         }
+        // Lazy zones: while some of this phase's parents are still deferred
+        // (waiting on a slow partner), no mutation can land anyway, so the
+        // mutation rows stay unclaimed and a later phase or filler can keep
+        // working there (e.g. the whiskerbloom hunt keeps rolling on row 1
+        // while P10-7's doughshroom spends 42 ticks maturing). Once the
+        // deferral lifts, the zone gets claimed and squatters are evicted
+        // with a few ticks to spare before the rolls start.
+        var hasDeferred = cells.some(function (c) {
+            return plan.deferred[c.x + "," + c.y];
+        });
+        if (!hasDeferred) {
+            zone.forEach(function (c) {
+                claim(c.x, c.y, "zone", null, phase.id);
+            });
+        }
         plan.active.push({ phase: phase, cells: cells });
     });
 
@@ -578,6 +637,22 @@ function gardenBuildPlan() {
                 if (gardenWeedFarmable(plan, mx, my)) {
                     claim(mx, my, "plant", "meddleweed", "P3-sow");
                 }
+            }
+        }
+    }
+
+    // CpS backfill: any tile that no phase, fixture, zone or weed wants gets
+    // a Baker's wheat (+1% CpS each while mature). Runs last, so it only ever
+    // uses truly idle ground (e.g. lane 2 during the half-day elderwort
+    // maturation) and is evicted the moment a real phase claims the tile.
+    // Skipped during weed season, where empty tiles ARE the resource.
+    if (!plan.weedActive && gardenUnlocked("bakerWheat")) {
+        for (var cy = 0; cy < 6; cy++) {
+            for (var cx = 0; cx < 6; cx++) {
+                if (plan.claims[cx + "," + cy]) continue;
+                var ct = G.plot[cy][cx];
+                if (ct[0] && !G.plantsById[ct[0] - 1].unlocked) continue; // protected sprout
+                claim(cx, cy, "plant", "bakerWheat", "cps-backfill");
             }
         }
     }
