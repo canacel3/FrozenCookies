@@ -195,10 +195,18 @@ var gardenPhases = [
     { id: "fillerL1", targets: ["bakeberry"], partial: true,
         cells: gardenRow("bakerWheat", 1, GARDEN_X_LEFT),
         zone: gardenZoneRows([0, 2], GARDEN_X_LEFT) },
-    // With the cronerice trio holding the even row-4 cells, wheat on rows 3/5
-    // (even x) turns the odd cells of those rows into bakeberry mutation
-    // slots: 6 eligible cells instead of 4. Partial, so any real phase that
-    // needs these rows takes priority automatically.
+    // Once the cronerice trio has retired (all three of its recipes secured),
+    // lane 2 belongs to bakeberry outright: a full wheat row 4 turns all 12
+    // cells of rows 3/5 into mutation slots. Declared before the comb version
+    // below; its zone claims keep the comb from wheating the mutation rows.
+    { id: "fillerL2-open", targets: ["bakeberry"], partial: true,
+        requireHave: GARDEN_CRONERICE_USERS,
+        cells: gardenRow("bakerWheat", 4, GARDEN_X_ALL),
+        zone: gardenZoneRows([3, 5], GARDEN_X_ALL) },
+    // With the cronerice trio still holding the even row-4 cells, wheat on
+    // rows 3/5 (even x) turns the odd cells of those rows into bakeberry
+    // mutation slots: 6 eligible cells instead of 4. Partial, so any real
+    // phase that needs these rows takes priority automatically.
     { id: "fillerL2", targets: ["bakeberry"], partial: true,
         cells: gardenRow("bakerWheat", 4, [0, 1, 2, 3, 5])
             .concat(gardenRow("bakerWheat", 3, GARDEN_X_EVEN))
@@ -315,6 +323,37 @@ function gardenBuildPlan() {
     var lateComplete = gardenUnlocked("queenbeetLump") && gardenUnlocked("duketater") && gardenUnlocked("shriekbulb");
     plan.gridActive = preComplete && (!lateComplete || !!plan.jqb);
 
+    // One maturing specimen per locked species is enough for the unlock:
+    // keep only the eldest sprout of each species (the fastest path to the
+    // seed) and thin every other duplicate so it stops squatting a mutation
+    // cell. Same-age duplicates offer no real insurance either (they share
+    // the same harvest window). Meddleweed (farmed in bulk during P3) and the
+    // JQB are exempt.
+    var eldest = {};
+    for (var ty = 0; ty < 6; ty++) {
+        for (var tx = 0; tx < 6; tx++) {
+            var tt = G.plot[ty][tx];
+            if (!tt[0]) continue;
+            var tp = G.plantsById[tt[0] - 1];
+            if (tp.unlocked || tp.key === "queenbeetLump" || tp.key === "meddleweed") continue;
+            if (!(tp.key in eldest) || tt[1] > eldest[tp.key].age) {
+                eldest[tp.key] = { x: tx, y: ty, age: tt[1] };
+            }
+        }
+    }
+    for (var dy = 0; dy < 6; dy++) {
+        for (var dx = 0; dx < 6; dx++) {
+            var dt = G.plot[dy][dx];
+            if (!dt[0]) continue;
+            var dp = G.plantsById[dt[0] - 1];
+            if (dp.unlocked || dp.key === "queenbeetLump" || dp.key === "meddleweed") continue;
+            var top = eldest[dp.key];
+            if (top && !(top.x === dx && top.y === dy)) {
+                plan.thinDup[dx + "," + dy] = true;
+            }
+        }
+    }
+
     // Fixture: resident elderwort shelf on y=5, kept while its consumers
     // (P13 ichorpuff, P14 everdaisy) are still open; retiring it afterwards
     // frees the bottom row for P15's full clover layout.
@@ -349,35 +388,6 @@ function gardenBuildPlan() {
                 });
             }
         }
-        // One maturing specimen per locked species is enough for the unlock:
-        // keep only the eldest sprout of each species (the fastest path to
-        // the seed) and thin every other duplicate so it stops squatting a
-        // mutation hole.
-        var eldest = {};
-        for (var ty = 0; ty < 6; ty++) {
-            for (var tx = 0; tx < 6; tx++) {
-                var tt = G.plot[ty][tx];
-                if (!tt[0]) continue;
-                var tp = G.plantsById[tt[0] - 1];
-                if (tp.unlocked || tp.key === "queenbeetLump") continue;
-                if (!(tp.key in eldest) || tt[1] > eldest[tp.key].age) {
-                    eldest[tp.key] = { x: tx, y: ty, age: tt[1] };
-                }
-            }
-        }
-        for (var dy = 0; dy < 6; dy++) {
-            for (var dx = 0; dx < 6; dx++) {
-                var dt = G.plot[dy][dx];
-                if (!dt[0]) continue;
-                var dp = G.plantsById[dt[0] - 1];
-                if (dp.unlocked || dp.key === "queenbeetLump") continue;
-                var top = eldest[dp.key];
-                if (top && !(top.x === dx && top.y === dy)) {
-                    plan.thinDup[dx + "," + dy] = true;
-                }
-            }
-        }
-
         // The corner hole (5,5) only has 3 neighbors, so it can never roll
         // JQB (needs 8) or shriekbulb (needs 5): it's a duketater-only slot.
         // Once duketater is secured it becomes worthless as a hole, so farm a
