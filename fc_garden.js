@@ -557,8 +557,21 @@ function gardenBuildPlan() {
                 });
                 return n;
             };
+            // Stickiness first: a lane already holding this phase's plants
+            // wins, so the choice can't flap between passes (flapping plants
+            // on both lanes: the plant pass runs every 5s but junk cleanup
+            // only once per tick). Then territory avoidance, then handicaps.
+            var planted = function (o) {
+                var n = 0;
+                o.cells.forEach(function (c) {
+                    if (G.plot[c.y][c.x][0] - 1 === G.plants[c.key].id) n++;
+                });
+                return n;
+            };
             options.sort(function (a, b) {
-                var d = overlap(a) - overlap(b);
+                var d = planted(b) - planted(a);
+                if (d) return d;
+                d = overlap(a) - overlap(b);
                 if (d) return d;
                 return a.cells.filter(blockedCell).length - b.cells.filter(blockedCell).length;
             });
@@ -942,6 +955,50 @@ function gardenSacrifice() {
         gardenLog("sacrifice", "+10 sugar lumps, loop restarts");
         FrozenCookies.gardenLastStep = -1;
     }
+}
+
+// Debug helper: call gardenBotStatus() in the console to see what the bot is
+// doing right now - active phases with per-tile state, protected sprouts,
+// soil and unlock progress. Read-only (builds a plan without acting on it).
+function gardenBotStatus() {
+    if (!G) G = Game.Objects["Farm"].minigame;
+    if (!G || !G.plot || !G.plants) return "garden not loaded";
+    var plan = gardenBuildPlan();
+    var status = {
+        unlocked: G.plantsUnlockedN + "/" + (G.plantsN || 34),
+        soil: G.soilsById[G.soil] ? G.soilsById[G.soil].name : G.soil,
+        gridActive: plan.gridActive,
+        jqb: plan.jqb ? "@" + plan.jqb.x + "," + plan.jqb.y + " age " + plan.jqb.age.toFixed(0) : null,
+        phases: plan.active.map(function (entry) {
+            return {
+                id: entry.phase.id,
+                targets: (entry.phase.targets || []).join(","),
+                cells: entry.cells.map(function (c) {
+                    var t = G.plot[c.y][c.x];
+                    var state;
+                    if (!t[0]) {
+                        state = plan.deferred[c.x + "," + c.y] ? "deferred" : "empty";
+                    } else if (t[0] - 1 === G.plants[c.key].id) {
+                        state = t[1] >= G.plants[c.key].mature ? "mature" : "growing";
+                    } else {
+                        state = "squatted:" + G.plantsById[t[0] - 1].key;
+                    }
+                    return c.key + "@" + c.x + "," + c.y + " " + state;
+                }),
+            };
+        }),
+        sprouts: [],
+    };
+    for (var y = 0; y < 6; y++) {
+        for (var x = 0; x < 6; x++) {
+            var t = G.plot[y][x];
+            if (t[0] && !G.plantsById[t[0] - 1].unlocked) {
+                var p = G.plantsById[t[0] - 1];
+                status.sprouts.push(p.key + "@" + x + "," + y + " age " + t[1].toFixed(0) + "/" + p.mature);
+            }
+        }
+    }
+    return status;
 }
 
 function autoGarden() {
