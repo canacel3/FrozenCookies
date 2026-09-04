@@ -645,11 +645,18 @@ function gardenBuildPlan() {
         // right when the survivors die, so pairs are never jointly mature).
         // Wait for the whole group to die, then replant it as one generation.
         if (phase.syncSpecies) {
-            var anyAlive = cells.some(function (c) {
-                return c.key === phase.syncSpecies &&
-                    G.plot[c.y][c.x][0] - 1 === G.plants[c.key].id;
+            var syncPlant = G.plants[phase.syncSpecies];
+            var oldestSync = -1;
+            cells.forEach(function (c) {
+                if (c.key !== phase.syncSpecies) return;
+                var t = G.plot[c.y][c.x];
+                if (t[0] - 1 === syncPlant.id) oldestSync = Math.max(oldestSync, t[1]);
             });
-            if (anyAlive) {
+            // Hold gaps only once a late refill could no longer share the
+            // cohort's mature window (joint maturity needs refillAge + mature
+            // < 100): a plant that failed to land a few ticks late can still
+            // join the generation, so refill it instead of running 5/6.
+            if (oldestSync >= 0 && oldestSync > 100 - syncPlant.mature - 5) {
                 cells.forEach(function (c) {
                     if (c.key !== phase.syncSpecies) return;
                     if (!G.plot[c.y][c.x][0]) plan.deferred[c.x + "," + c.y] = true;
