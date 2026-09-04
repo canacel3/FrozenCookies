@@ -994,8 +994,41 @@ function gardenBotStatus() {
                 }),
             };
         }),
+        fixtures: {},
         sprouts: [],
     };
+    // Fixtures and fillers (shelf, trio, CpS wheat, weed sowing...) hold
+    // plant claims without appearing in plan.active: group them by owner.
+    var activeIds = {};
+    plan.active.forEach(function (entry) { activeIds[entry.phase.id] = true; });
+    Object.keys(plan.claims).forEach(function (id) {
+        var c = plan.claims[id];
+        if (c.kind !== "plant" || activeIds[c.phase]) return;
+        var xy = id.split(",");
+        var fx = Number(xy[0]);
+        var fy = Number(xy[1]);
+        var ft = G.plot[fy][fx];
+        var state;
+        if (!ft[0]) {
+            state = plan.deferred[id] ? "deferred" : "empty";
+        } else if (ft[0] - 1 === G.plants[c.key].id) {
+            state = ft[1] >= G.plants[c.key].mature ? "mature" : "growing";
+        } else {
+            state = "squatted:" + G.plantsById[ft[0] - 1].key;
+        }
+        (status.fixtures[c.phase] = status.fixtures[c.phase] || []).push(c.key + "@" + fx + "," + fy + " " + state);
+    });
+    // Large groups (e.g. the CpS backfill) get summarized instead of listed
+    Object.keys(status.fixtures).forEach(function (k) {
+        if (status.fixtures[k].length > 6) {
+            var counts = {};
+            status.fixtures[k].forEach(function (s) {
+                var tag = s.split("@")[0] + " " + s.split(" ")[1];
+                counts[tag] = (counts[tag] || 0) + 1;
+            });
+            status.fixtures[k] = Object.keys(counts).map(function (t) { return t + " x" + counts[t]; });
+        }
+    });
     for (var y = 0; y < 6; y++) {
         for (var x = 0; x < 6; x++) {
             var t = G.plot[y][x];
