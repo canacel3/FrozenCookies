@@ -195,8 +195,14 @@ var gardenPhases = [
     { id: "fillerL1", targets: ["bakeberry"], partial: true,
         cells: gardenRow("bakerWheat", 1, GARDEN_X_LEFT),
         zone: gardenZoneRows([0, 2], GARDEN_X_LEFT) },
+    // With the cronerice trio holding the even row-4 cells, wheat on rows 3/5
+    // (even x) turns the odd cells of those rows into bakeberry mutation
+    // slots: 6 eligible cells instead of 4. Partial, so any real phase that
+    // needs these rows takes priority automatically.
     { id: "fillerL2", targets: ["bakeberry"], partial: true,
-        cells: gardenRow("bakerWheat", 4, [0, 1, 2, 3, 5]),
+        cells: gardenRow("bakerWheat", 4, [0, 1, 2, 3, 5])
+            .concat(gardenRow("bakerWheat", 3, GARDEN_X_EVEN))
+            .concat(gardenRow("bakerWheat", 5, GARDEN_X_EVEN)),
         zone: gardenZoneRows([3, 5], GARDEN_X_ALL) },
 ];
 
