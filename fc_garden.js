@@ -554,12 +554,30 @@ function gardenBuildPlan() {
                 return n;
             };
             options.sort(function (a, b) {
-                var d = a.cells.filter(blockedCell).length - b.cells.filter(blockedCell).length;
+                var d = overlap(a) - overlap(b);
                 if (d) return d;
-                return overlap(a) - overlap(b);
+                return a.cells.filter(blockedCell).length - b.cells.filter(blockedCell).length;
             });
             cells = options[0].cells;
             zone = options[0].zone;
+            // Column dodge: a single squatted or contamination-blocked tile
+            // needn't cripple its recipe pair. Sliding just that parent one
+            // tile sideways keeps the geometry valid (rows are what matter:
+            // split-form partners stay 2 rows apart, standard-form parents
+            // stay in the parent row) and restores the pairing.
+            var origCells = cells;
+            cells = cells.map(function (c) {
+                if (!blockedCell(c)) return c;
+                var alts = [c.x + 1, c.x - 1];
+                for (var ai = 0; ai < alts.length; ai++) {
+                    if (alts[ai] < 0 || alts[ai] > 5) continue;
+                    var alt = { key: c.key, x: alts[ai], y: c.y };
+                    if (!freeFor(alt) || blockedCell(alt)) continue;
+                    if (origCells.some(function (o) { return o.x === alt.x && o.y === alt.y; })) continue;
+                    return alt;
+                }
+                return c; // no dodge available: keep home (stays unplanted)
+            });
         }
         cells.forEach(function (c) {
             claim(c.x, c.y, "plant", c.key, phase.id);
