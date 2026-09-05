@@ -197,9 +197,12 @@ var gardenPhases = [
     // Once mature, (1,2)-(4,2) see 3 elderwort above + 3 tidygrass below,
     // doubling the everdaisy mutation cells. `aux` keeps this slow row (8h+)
     // out of the soil-maturity gate so it can't delay the wood chips switch.
+    // Full-width zone: with this elderwort row in place, every row-2 cell
+    // that also touches a crumbspore (P13) or tidygrass (P14) below becomes a
+    // bonus mutation slot, so none of row 2 may be backfilled.
     { id: "P14b", targets: ["everdaisy"], aux: true,
         cells: gardenRow("elderwort", 1, GARDEN_X_ALL),
-        zone: gardenZoneRows([2], [1, 2, 3, 4]) },
+        zone: gardenZoneRows([2], GARDEN_X_ALL) },
     // Background wheat lanes: bakeberry is only 0.1%, so keep wheat in any free
     // lane tiles from P1 all the way until it finally unlocks.
     { id: "fillerL1", targets: ["bakeberry"], partial: true,
