@@ -927,24 +927,39 @@ function gardenSoilPass(plan) {
         // alongside. "Rolling" = every species of the recipe has at least one
         // mature planted specimen (so held gaps or a squatted tile don't
         // disqualify a working recipe, but a missing partner does).
+        // "Rolling" = an actual roll site exists: an empty tile whose 8
+        // neighbors simultaneously satisfy every species requirement of the
+        // recipe (rollNeeds, default 1 per species). Four mature clovers
+        // scattered across the field don't count until some empty tile sees
+        // all four at once.
         var anyRolling = plan.active.some(function (entry) {
             if (entry.phase.aux || !entry.cells.length) return false;
-            var matureCount = {};
-            entry.cells.forEach(function (c) {
-                var tile = G.plot[c.y][c.x];
-                var plant = G.plants[c.key];
-                if (!(c.key in matureCount)) matureCount[c.key] = 0;
-                if (tile[0] - 1 === plant.id && tile[1] >= plant.mature) {
-                    matureCount[c.key]++;
-                }
-            });
-            // Quantity recipes (clover M x4, crumbspore/whiskerbloom/wheat M
-            // x2) can't roll off a single mature straggler: each species must
-            // reach its recipe count before the phase counts as rolling.
             var need = entry.phase.rollNeeds || {};
-            return Object.keys(matureCount).every(function (k) {
-                return matureCount[k] >= (need[k] || 1);
+            var required = {};
+            entry.cells.forEach(function (c) {
+                required[c.key] = need[c.key] || 1;
             });
+            for (var ry = 0; ry < 6; ry++) {
+                for (var rx = 0; rx < 6; rx++) {
+                    if (G.plot[ry][rx][0]) continue;
+                    var counts = {};
+                    gardenNeighbors(rx, ry).forEach(function (n) {
+                        var t = G.plot[n.y][n.x];
+                        if (!t[0]) return;
+                        var p = G.plantsById[t[0] - 1];
+                        if (t[1] >= p.mature) counts[p.key] = (counts[p.key] || 0) + 1;
+                    });
+                    var site = true;
+                    for (var k in required) {
+                        if ((counts[k] || 0) < required[k]) {
+                            site = false;
+                            break;
+                        }
+                    }
+                    if (site) return true;
+                }
+            }
+            return false;
         });
         if (!slowSprout && anyRolling) want = GARDEN_SOIL_WOODCHIPS;
     }
