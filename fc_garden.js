@@ -82,7 +82,7 @@ function gardenP15Zone() {
 // wheat for the 0.1% bakeberry mutation) just use whatever tiles are free.
 // The P16 queenbeet grid is handled separately in gardenBuildPlan().
 var gardenPhases = [
-    { id: "P1", targets: ["thumbcorn"],
+    { id: "P1", targets: ["thumbcorn"], rollNeeds: { bakerWheat: 2 },
         cells: gardenRow("bakerWheat", 1, GARDEN_X_LEFT),
         zone: gardenZoneRows([0, 2], GARDEN_X_LEFT) },
     { id: "P2", targets: ["cronerice"],
@@ -139,7 +139,7 @@ var gardenPhases = [
         cells: gardenRow("crumbspore", 0, GARDEN_X_EVEN).concat(gardenRow("shimmerlily", 2, GARDEN_X_EVEN)),
         zone: gardenZoneRows([1], GARDEN_X_ALL) },
     // doughshroom needs crumbspore M x2 at once -> keep the generation in sync
-    { id: "P10-6", targets: ["doughshroom"], syncSpecies: "crumbspore",
+    { id: "P10-6", targets: ["doughshroom"], syncSpecies: "crumbspore", rollNeeds: { crumbspore: 2 },
         cells: gardenRow("crumbspore", 1, GARDEN_X_EVEN),
         zone: gardenZoneRows([0, 2], GARDEN_X_ALL) },
     { id: "P10-7", targets: ["foolBolete"],
@@ -161,7 +161,7 @@ var gardenPhases = [
         cells: gardenRow("shimmerlily", 4, GARDEN_X_EVEN).concat(gardenRow("whiteChocoroot", 4, GARDEN_X_ODD)),
         zone: gardenZoneRows([3, 5], GARDEN_X_ALL) },
     // nursetulip needs whiskerbloom M x2 at once -> keep the generation in sync
-    { id: "P11-2", targets: ["nursetulip"], syncSpecies: "whiskerbloom",
+    { id: "P11-2", targets: ["nursetulip"], syncSpecies: "whiskerbloom", rollNeeds: { whiskerbloom: 2 },
         cells: gardenRow("whiskerbloom", 1, GARDEN_X_ALL),
         zone: gardenZoneRows([0, 2], GARDEN_X_ALL) },
     { id: "P11-3", targets: ["chimerose"],
@@ -189,7 +189,10 @@ var gardenPhases = [
     // -invested sprint whose sprout then frees the whole board for ~67 ticks
     // - almost exactly goldenClover's expected hunt time - so P15 slots into
     // that window instead of evicting a growing bakeberry row.
-    { id: "P15", targets: ["goldenClover"],
+    // goldenClover needs clover M x4 AT ONCE: desynced cells are mature-4
+    // only ~20% of the time (0.67^4) vs ~67% for a locked generation, so the
+    // field replants in lockstep like the other same-species recipes.
+    { id: "P15", targets: ["goldenClover"], rollNeeds: { clover: 4 }, syncSpecies: "clover",
         cells: gardenP15Cells(),
         zone: gardenP15Zone() },
     // Everdaisy booster: with queenbeet secured, lane 1 has nothing left to
@@ -210,14 +213,14 @@ var gardenPhases = [
         } },
     // Background wheat lanes: bakeberry is only 0.1%, so keep wheat in any free
     // lane tiles from P1 all the way until it finally unlocks.
-    { id: "fillerL1", targets: ["bakeberry"], partial: true,
+    { id: "fillerL1", targets: ["bakeberry"], partial: true, rollNeeds: { bakerWheat: 2 },
         cells: gardenRow("bakerWheat", 1, GARDEN_X_LEFT),
         zone: gardenZoneRows([0, 2], GARDEN_X_LEFT) },
     // Once the cronerice trio has retired (all three of its recipes secured),
     // lane 2 belongs to bakeberry outright: a full wheat row 4 turns all 12
     // cells of rows 3/5 into mutation slots. Declared before the comb version
     // below; its zone claims keep the comb from wheating the mutation rows.
-    { id: "fillerL2-open", targets: ["bakeberry"], partial: true,
+    { id: "fillerL2-open", targets: ["bakeberry"], partial: true, rollNeeds: { bakerWheat: 2 },
         requireHave: GARDEN_CRONERICE_USERS,
         cells: gardenRow("bakerWheat", 4, GARDEN_X_ALL),
         zone: gardenZoneRows([3, 5], GARDEN_X_ALL) },
@@ -225,7 +228,7 @@ var gardenPhases = [
     // rows 3/5 (even x) turns the odd cells of those rows into bakeberry
     // mutation slots: 6 eligible cells instead of 4. Partial, so any real
     // phase that needs these rows takes priority automatically.
-    { id: "fillerL2", targets: ["bakeberry"], partial: true,
+    { id: "fillerL2", targets: ["bakeberry"], partial: true, rollNeeds: { bakerWheat: 2 },
         cells: gardenRow("bakerWheat", 4, [0, 1, 2, 3, 5])
             .concat(gardenRow("bakerWheat", 3, GARDEN_X_EVEN))
             .concat(gardenRow("bakerWheat", 5, GARDEN_X_EVEN)),
@@ -899,9 +902,11 @@ function gardenPlantPass(plan) {
 function gardenSoilPass(plan) {
     var want = GARDEN_SOIL_FERTILIZER;
     if (!plan.weedActive && !plan.jqb && plan.active.length) {
-        // A slow locked sprout (elderwort/everdaisy/drowsyfern class, 100+
-        // ticks to mature) is almost always the cycle's gating chain: keep
-        // the fast fertilizer ticks for it. The grid runs its own economy.
+        // An elderwort sprout is the one slow maturation that gates further
+        // construction (unlock -> shelf -> another 12h -> P13/P14), so keep
+        // the fast fertilizer ticks for it. Other slow sprouts (everdaisy,
+        // drowsyfern, duketater) only gate the final sacrifice, which waits
+        // for the JQB anyway - the rolling hunts' x1.8 from wood chips wins.
         var slowSprout = false;
         if (!plan.gridActive) {
             for (var sy = 0; sy < 6 && !slowSprout; sy++) {
@@ -909,8 +914,7 @@ function gardenSoilPass(plan) {
                     var st = G.plot[sy][sx];
                     if (!st[0]) continue;
                     var sp = G.plantsById[st[0] - 1];
-                    if (sp.unlocked) continue;
-                    if (sp.mature / (sp.ageTick + sp.ageTickR / 2) > 100) {
+                    if (!sp.unlocked && sp.key === "elderwort") {
                         slowSprout = true;
                         break;
                     }
@@ -925,17 +929,21 @@ function gardenSoilPass(plan) {
         // disqualify a working recipe, but a missing partner does).
         var anyRolling = plan.active.some(function (entry) {
             if (entry.phase.aux || !entry.cells.length) return false;
-            var okBySpecies = {};
+            var matureCount = {};
             entry.cells.forEach(function (c) {
                 var tile = G.plot[c.y][c.x];
                 var plant = G.plants[c.key];
-                if (!(c.key in okBySpecies)) okBySpecies[c.key] = false;
+                if (!(c.key in matureCount)) matureCount[c.key] = 0;
                 if (tile[0] - 1 === plant.id && tile[1] >= plant.mature) {
-                    okBySpecies[c.key] = true;
+                    matureCount[c.key]++;
                 }
             });
-            return Object.keys(okBySpecies).every(function (k) {
-                return okBySpecies[k];
+            // Quantity recipes (clover M x4, crumbspore/whiskerbloom/wheat M
+            // x2) can't roll off a single mature straggler: each species must
+            // reach its recipe count before the phase counts as rolling.
+            var need = entry.phase.rollNeeds || {};
+            return Object.keys(matureCount).every(function (k) {
+                return matureCount[k] >= (need[k] || 1);
             });
         });
         if (!slowSprout && anyRolling) want = GARDEN_SOIL_WOODCHIPS;
