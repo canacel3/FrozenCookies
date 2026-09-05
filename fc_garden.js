@@ -197,12 +197,17 @@ var gardenPhases = [
     // Once mature, (1,2)-(4,2) see 3 elderwort above + 3 tidygrass below,
     // doubling the everdaisy mutation cells. `aux` keeps this slow row (8h+)
     // out of the soil-maturity gate so it can't delay the wood chips switch.
-    // Full-width zone: with this elderwort row in place, every row-2 cell
-    // that also touches a crumbspore (P13) or tidygrass (P14) below becomes a
-    // bonus mutation slot, so none of row 2 may be backfilled.
+    // With this elderwort row in place, row 2 becomes a bonus mutation row.
+    // Its corners can only ever fire for ichorpuff (elder x1 + crumb x1);
+    // everdaisy needs 3+3 which corners can't see, so once ichorpuff is
+    // secured they're released to the CpS backfill.
     { id: "P14b", targets: ["everdaisy"], aux: true,
         cells: gardenRow("elderwort", 1, GARDEN_X_ALL),
-        zone: gardenZoneRows([2], GARDEN_X_ALL) },
+        zone: function (have) {
+            return have("ichorpuff")
+                ? gardenZoneRows([2], [1, 2, 3, 4])
+                : gardenZoneRows([2], GARDEN_X_ALL);
+        } },
     // Background wheat lanes: bakeberry is only 0.1%, so keep wheat in any free
     // lane tiles from P1 all the way until it finally unlocks.
     { id: "fillerL1", targets: ["bakeberry"], partial: true,
@@ -518,7 +523,9 @@ function gardenBuildPlan() {
         if (phase.requireHave && !phase.requireHave.every(have)) return; // conditional duplicate not warranted yet
         if (!phase.cells.every(function (c) { return gardenUnlocked(c.key); })) return; // parents not available yet
         var cells = phase.cells;
-        var zone = phase.zone || [];
+        // A zone may be a function of the current unlock state (e.g. P14b's
+        // row-2 corners only matter while ichorpuff is still hunted)
+        var zone = typeof phase.zone === "function" ? phase.zone(have) : (phase.zone || []);
         if (phase.partial) {
             cells = cells.filter(freeFor);
             if (!cells.length) return;
