@@ -421,6 +421,21 @@ function gardenBuildPlan() {
                 });
             }
         }
+        // P16c: while a JQB grows, shriekbulb is hunted via duketater x3 at
+        // ANY age (0.5% - five times the queenbeet M x5 holes, and with no
+        // maturation wait): a duketater row on the edge farthest from the
+        // JQB, with the neighboring row kept open as the roll pocket (its
+        // middle four tiles each see three duketaters). Only while the JQB
+        // grows - before that, the queenbeet grid must stay intact for the
+        // JQB holes themselves.
+        if (plan.jqb && gardenUnlocked("duketater") && !have("shriekbulb")) {
+            var dRow = plan.jqb.y >= 3 ? 0 : 5;
+            var pRow = dRow === 0 ? 1 : 4;
+            for (var dx2 = 0; dx2 < 6; dx2++) {
+                claim(dx2, dRow, "plant", "duketater", "P16c");
+                claim(dx2, pRow, "zone", null, "P16c");
+            }
+        }
         // The corner hole (5,5) only has 3 neighbors, so it can never roll
         // JQB (needs 8) or shriekbulb (needs 5): it's a duketater-only slot.
         // Once duketater is secured it becomes worthless as a hole, so farm a
@@ -428,13 +443,14 @@ function gardenBuildPlan() {
         if (have("duketater") && gardenUnlocked("bakerWheat")) {
             claim(5, 5, "plant", "bakerWheat", "P16-cps");
         }
-        // Retirement: once a JQB is growing and duketater/shriekbulb are
-        // secured, the rest of the grid has nothing left to produce (the
-        // elderwort ring shares tiles with every other JQB hole, and the side
-        // holes only roll junk). Stop replanting queenbeets; each remaining
-        // one is harvested at maturity for its yield, and every freed tile
-        // (holes included) grows Baker's wheat for its +1% CpS passive.
-        plan.gridRetire = !!plan.jqb && have("duketater") && have("shriekbulb");
+        // Retirement: once a JQB is growing and duketater is secured, the
+        // rest of the grid has nothing left to produce (the elderwort ring
+        // shares tiles with every other JQB hole, the side holes only roll
+        // junk, and shriekbulb is hunted via the P16c duketater row instead).
+        // Stop replanting queenbeets; each remaining one is harvested at
+        // maturity for its yield, and every freed tile (holes included) grows
+        // Baker's wheat for its +1% CpS passive.
+        plan.gridRetire = !!plan.jqb && have("duketater");
 
         // Queenbeet grid: plant everything except the 9 odd/odd tiles, the
         // JQB/duketater/shriekbulb mutation slots ((5,5) may already be
