@@ -246,6 +246,17 @@ gardenPhases.forEach(function (p) {
     }
 });
 
+// Species some phase plants as a parent. A locked sprout of one of these
+// gates further construction (its unlock is what lets the next recipe get
+// built), so the soil logic keeps fertilizer's fast ticks for it. Leaf
+// species (everdaisy, drowsyfern, foolBolete, duketater...) never appear
+// as cells and don't pin the soil. queenbeet is added by hand: the JQB
+// grid plants it outside the phase table.
+var GARDEN_PARENT_SPECIES = { queenbeet: true };
+gardenPhases.forEach(function (p) {
+    (p.cells || []).forEach(function (c) { GARDEN_PARENT_SPECIES[c.key] = true; });
+});
+
 function gardenUnlocked(key) {
     return !!(G.plants[key] && G.plants[key].unlocked);
 }
@@ -573,7 +584,30 @@ function gardenBuildPlan() {
                 });
             }
             options = options.filter(function (o) { return o.cells.every(freeFor); });
-            if (!options.length) return; // every lane is held by an earlier phase
+            // A lane whose mutation zone is entirely dead is unusable: the
+            // parents could be planted, but no tile could ever host the
+            // mutation (e.g. P10-7 mirrored under a full P9 row 4 - and by
+            // the time that row frees up, the elderwort shelf evicts the
+            // rig). Dead = the tile will hold an earlier phase's plant, a
+            // protected locked sprout squats it, or a live non-wheat plant
+            // sits there (cleanup purges junk every tick, so a persistent
+            // occupant is some rig - possibly a LATER phase's, invisible in
+            // the claims here - and claiming over it would evict a working
+            // hunt). Backfill wheat and another phase's *zone* claim are
+            // fine - wheat yields the tile and shared empty mutation rows
+            // spawn for both.
+            var zoneDead = function (c) {
+                var cl = plan.claims[c.x + "," + c.y];
+                if (cl && (cl.kind === "plant" || cl.kind === "weed")) return true;
+                var t = G.plot[c.y][c.x];
+                if (!t[0]) return false;
+                var p = G.plantsById[t[0] - 1];
+                return !p.unlocked || p.key !== "bakerWheat";
+            };
+            options = options.filter(function (o) {
+                return !o.zone.length || !o.zone.every(zoneDead);
+            });
+            if (!options.length) return; // every lane is held or has no live mutation tile
             // Tiebreak: prefer the lane that overlaps other phases' territory
             // (cells AND mutation rows, even lazily unclaimed ones) the least.
             // Squeezing into a borrowed mutation row is a last resort - it
@@ -918,11 +952,13 @@ function gardenPlantPass(plan) {
 function gardenSoilPass(plan) {
     var want = GARDEN_SOIL_FERTILIZER;
     if (!plan.weedActive && !plan.jqb && plan.active.length) {
-        // An elderwort sprout is the one slow maturation that gates further
-        // construction (unlock -> shelf -> another 12h -> P13/P14), so keep
-        // the fast fertilizer ticks for it. Other slow sprouts (everdaisy,
-        // drowsyfern, duketater) only gate the final sacrifice, which waits
-        // for the JQB anyway - the rolling hunts' x1.8 from wood chips wins.
+        // A locked sprout of a parent species (one that some phase plants as
+        // a recipe ingredient: cronerice, elderwort, crumbspore, clover,
+        // tidygrass, queenbeet...) gates further construction - its unlock
+        // is what lets the next rig get built - so keep the fast fertilizer
+        // ticks for it. Leaf sprouts (everdaisy, drowsyfern, duketater...)
+        // only gate the final sacrifice, which waits for the JQB anyway -
+        // the rolling hunts' x1.8 from wood chips wins for those.
         var slowSprout = false;
         if (!plan.gridActive) {
             for (var sy = 0; sy < 6 && !slowSprout; sy++) {
@@ -930,7 +966,7 @@ function gardenSoilPass(plan) {
                     var st = G.plot[sy][sx];
                     if (!st[0]) continue;
                     var sp = G.plantsById[st[0] - 1];
-                    if (!sp.unlocked && sp.key === "elderwort") {
+                    if (!sp.unlocked && GARDEN_PARENT_SPECIES[sp.key]) {
                         slowSprout = true;
                         break;
                     }
