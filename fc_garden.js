@@ -588,24 +588,34 @@ function gardenBuildPlan() {
             // parents could be planted, but no tile could ever host the
             // mutation (e.g. P10-7 mirrored under a full P9 row 4 - and by
             // the time that row frees up, the elderwort shelf evicts the
-            // rig). Dead = the tile will hold an earlier phase's plant, a
-            // protected locked sprout squats it, or a live non-wheat plant
-            // sits there (cleanup purges junk every tick, so a persistent
-            // occupant is some rig - possibly a LATER phase's, invisible in
-            // the claims here - and claiming over it would evict a working
-            // hunt). Backfill wheat and another phase's *zone* claim are
-            // fine - wheat yields the tile and shared empty mutation rows
-            // spawn for both.
-            var zoneDead = function (c) {
+            // rig). Hard-dead = the tile will hold an earlier phase's plant
+            // or a protected locked sprout squats it: no reclaim path, veto
+            // always. A live non-wheat plant (cleanup purges junk every
+            // tick, so a persistent occupant is some LATER phase's rig,
+            // invisible in the claims here) only vetoes NEW construction -
+            // don't bulldoze a working hunt to build next to it. A rig this
+            // phase already owns stays: its lazily-lent zone is reclaimed
+            // from the borrower when the deferral lifts (the lending
+            // contract), so the borrower's plants don't kill the lender.
+            // Backfill wheat and another phase's *zone* claim never veto -
+            // wheat yields the tile and shared empty mutation rows spawn
+            // for both.
+            var zoneDead = function (c, established) {
                 var cl = plan.claims[c.x + "," + c.y];
                 if (cl && (cl.kind === "plant" || cl.kind === "weed")) return true;
                 var t = G.plot[c.y][c.x];
                 if (!t[0]) return false;
                 var p = G.plantsById[t[0] - 1];
-                return !p.unlocked || p.key !== "bakerWheat";
+                if (!p.unlocked) return true;
+                return p.key !== "bakerWheat" && !established;
             };
             options = options.filter(function (o) {
-                return !o.zone.length || !o.zone.every(zoneDead);
+                if (!o.zone.length) return true;
+                var established = o.cells.some(function (c) {
+                    return c.key !== "bakerWheat" &&
+                        G.plot[c.y][c.x][0] - 1 === G.plants[c.key].id;
+                });
+                return !o.zone.every(function (c) { return zoneDead(c, established); });
             });
             if (!options.length) return; // every lane is held or has no live mutation tile
             // Tiebreak: prefer the lane that overlaps other phases' territory
