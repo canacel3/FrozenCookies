@@ -216,12 +216,18 @@ var gardenPhases = [
     { id: "fillerL1", targets: ["bakeberry"], partial: true, rollNeeds: { bakerWheat: 2 },
         cells: gardenRow("bakerWheat", 1, GARDEN_X_LEFT),
         zone: gardenZoneRows([0, 2], GARDEN_X_LEFT) },
-    // Once the cronerice trio has retired (all three of its recipes secured),
+    // While the cronerice trio can't exist (cronerice still locked, cycle
+    // start) or once it has retired (all three of its recipes secured),
     // lane 2 belongs to bakeberry outright: a full wheat row 4 turns all 12
-    // cells of rows 3/5 into mutation slots. Declared before the comb version
-    // below; its zone claims keep the comb from wheating the mutation rows.
+    // cells of rows 3/5 into mutation slots - double the comb's count for
+    // the same recipe. The comb below takes over only for the trio's actual
+    // residency (its own wheat columns on rows 3/5 survive cronerice taking
+    // the even row-4 tiles). Declared before the comb version; its zone
+    // claims keep the comb from wheating the mutation rows.
     { id: "fillerL2-open", targets: ["bakeberry"], partial: true, rollNeeds: { bakerWheat: 2 },
-        requireHave: GARDEN_CRONERICE_USERS,
+        when: function (have) {
+            return !gardenUnlocked("cronerice") || GARDEN_CRONERICE_USERS.every(have);
+        },
         cells: gardenRow("bakerWheat", 4, GARDEN_X_ALL),
         zone: gardenZoneRows([3, 5], GARDEN_X_ALL) },
     // With the cronerice trio still holding the even row-4 cells, wheat on
@@ -463,6 +469,17 @@ function gardenBuildPlan() {
         // Baker's wheat for its +1% CpS passive.
         plan.gridRetire = !!plan.jqb && have("duketater");
 
+        // Border trim: JQB needs 8 mature queenbeet neighbors, so the edge
+        // holes (5 neighbors, 3 in the corner) can never roll it - only the
+        // four inner holes (1,1),(3,1),(1,3),(3,3) live, and they draw all
+        // their neighbors from the inner 5x5. The x=5/y=5 border (4 edge
+        // holes + 6 queenbeets feeding only them) exists solely for the
+        // duketater (M x2) and shriekbulb (M x5) hunts; once both are
+        // secured, grow Baker's wheat on those 11 tiles instead (+11% CpS
+        // for the days-long JQB wait, and 6 fewer queenbeets to replant
+        // each generation). During retirement the normal harvest-then-wheat
+        // path already covers the border gracefully.
+        var gridTrim = !plan.gridRetire && have("duketater") && have("shriekbulb");
         // Queenbeet grid: plant everything except the 9 odd/odd tiles, the
         // JQB/duketater/shriekbulb mutation slots ((5,5) may already be
         // claimed as wheat above; first claim wins).
@@ -470,6 +487,12 @@ function gardenBuildPlan() {
         var qbId = G.plants["queenbeet"].id;
         for (var gy = 0; gy < 6; gy++) {
             for (var gx = 0; gx < 6; gx++) {
+                if (gridTrim && (gx === 5 || gy === 5) && !plan.claims[gx + "," + gy]) {
+                    if (gardenUnlocked("bakerWheat")) {
+                        claim(gx, gy, "plant", "bakerWheat", "P16-cps");
+                    }
+                    continue;
+                }
                 if (gx % 2 === 1 && gy % 2 === 1) {
                     if (plan.gridRetire && gardenUnlocked("bakerWheat")) {
                         claim(gx, gy, "plant", "bakerWheat", "P16-cps");
@@ -551,6 +574,7 @@ function gardenBuildPlan() {
             return;
         }
         if (phase.requireHave && !phase.requireHave.every(have)) return; // conditional duplicate not warranted yet
+        if (phase.when && !phase.when(have)) return; // custom activation condition not met
         if (!phase.cells.every(function (c) { return gardenUnlocked(c.key); })) return; // parents not available yet
         var cells = phase.cells;
         // A zone may be a function of the current unlock state (e.g. P14b's
