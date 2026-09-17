@@ -146,7 +146,7 @@ var gardenPhases = [
         cells: gardenRow("doughshroom", 0, GARDEN_X_EVEN).concat(gardenRow("greenRot", 2, GARDEN_X_EVEN)),
         zone: gardenZoneRows([1], GARDEN_X_ALL) },
     { id: "P10-8", targets: ["wardlichen"],
-        cells: gardenRow("cronerice", 4, GARDEN_X_EVEN).concat(gardenRow("whiteMildew", 4, [1, 3])),
+        cells: gardenRow("cronerice", 4, GARDEN_X_EVEN).concat(gardenRow("whiteMildew", 4, GARDEN_X_ODD)),
         zone: gardenZoneRows([3, 5], GARDEN_X_ALL) },
     { id: "P10-9", targets: ["drowsyfern"],
         cells: gardenRow("chocoroot", 1, GARDEN_X_EVEN).concat(gardenRow("keenmoss", 1, GARDEN_X_ODD)),
@@ -705,15 +705,20 @@ function gardenBuildPlan() {
         cells.forEach(function (c) {
             var mine = plan.claims[c.x + "," + c.y];
             if (!mine || mine.phase !== phase.id) return;
-            // Per partner species the wait is until ANY ONE of its plants is
-            // mature (one mature partner keeps the recipe rolling, so a lone
-            // fresh replacement in an otherwise mature trio must not stall
-            // us); the cell then waits for the slowest such species. No flat
+            // Per partner species the wait is until ANY ONE of its plants
+            // within pairing range is mature - pairing range = Chebyshev
+            // distance 2, the farthest two parents can sit while still
+            // sharing a roll tile. A mature partner elsewhere in the row
+            // doesn't help this cell (e.g. P10-8: mildew@1 next to a mature
+            // cronerice@0 plants now, while mildew@3,@5 wait for their own
+            // growing cronerice@2,@4 instead of dying uselessly in between).
+            // The cell then waits for the slowest such species. No flat
             // floor: for extreme agers like greenRot (18.5 age/tick, ~5 tick
             // lifespan) even a 15-tick wait wastes several generations.
             var partnerBest = {};
             cells.forEach(function (o) {
                 if (o.key === c.key) return;
+                if (Math.abs(o.x - c.x) > 2 || Math.abs(o.y - c.y) > 2) return;
                 var p = G.plants[o.key];
                 var avg = p.ageTick + p.ageTickR / 2;
                 var t = G.plot[o.y][o.x];
