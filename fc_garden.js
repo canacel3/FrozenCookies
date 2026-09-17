@@ -738,10 +738,17 @@ function gardenBuildPlan() {
             // wins, so the choice can't flap between passes (flapping plants
             // on both lanes: the plant pass runs every 5s but junk cleanup
             // only once per tick). Then territory avoidance, then handicaps.
+            // Wheat doesn't count as an anchor (it's fungible backfill, not
+            // an investment): when a rig's real parents die out as one
+            // generation, the phase re-evaluates freely and can move to a
+            // roomier lane (e.g. off the shelf-crippled row 4 onto row 3)
+            // at that natural boundary instead of being pinned by leftover
+            // wheat cells.
             var planted = function (o) {
                 var n = 0;
                 o.cells.forEach(function (c) {
-                    if (G.plot[c.y][c.x][0] - 1 === G.plants[c.key].id) n++;
+                    if (c.key !== "bakerWheat" &&
+                        G.plot[c.y][c.x][0] - 1 === G.plants[c.key].id) n++;
                 });
                 return n;
             };
