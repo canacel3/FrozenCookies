@@ -17,16 +17,41 @@ var GARDEN_X_ALL = [0, 1, 2, 3, 4, 5];
 // Lanes are restricted to x0-3 while the weed zone (x4-5) is active
 var GARDEN_X_LEFT = [0, 1, 2, 3];
 
-// Seeds that only the P16 queenbeet grid can produce
+// Seeds that only the P15 queenbeet grid can produce
 var GARDEN_LATE_SEEDS = {
     queenbeetLump: 1,
     duketater: 1,
     shriekbulb: 1,
 };
 
-// The recipes that use cronerice as a parent; the trio at (0,4),(2,4),(4,4)
-// stays planted until all of them are secured, then hands lane 2 to P12b.
-var GARDEN_CRONERICE_USERS = ["gildmillet", "elderwort", "wardlichen"];
+// The grid-gating recipes that use cronerice as a parent; the trio at
+// (0,4),(2,4),(4,4) stays planted until these are secured, then hands lane 2
+// to P11b. wardlichen also uses cronerice but no longer holds the trio: it
+// is a strip seed, and S-wardlichen grows its own cronerice on row 5.
+var GARDEN_CRONERICE_USERS = ["gildmillet", "elderwort"];
+
+// Seeds whose recipes still fit on row 5 while the queenbeet grid holds the
+// inner 5x5: one or two mature parents visible from an in-row gap, and no
+// contaminating parent (mushrooms would eat the prize sprout orthogonally;
+// everdaisy needs 3+3 and goldenClover clover x4 - geometrically impossible
+// on a single row). The grid does NOT wait for these: they are hunted on
+// the row-5 strip while the JQB lottery runs. Array order in gardenPhases =
+// hunt priority: the drowsyfern chain first (its sprout matures for ~285
+// ticks, so it must start rolling as early as possible), then the
+// whiskerbloom line, then wardlichen.
+var GARDEN_STRIP_SEEDS = ["keenmoss", "drowsyfern", "whiskerbloom", "nursetulip", "chimerose", "wardlichen"];
+
+// Strip layout A@0,gap,B@2,A@3,gap,B@5: both gaps see one A and one B (or
+// two of the same species when a === b).
+function gardenStripCells(a, b) {
+    return [
+        { key: a, x: 0, y: 5 }, { key: b, x: 2, y: 5 },
+        { key: a, x: 3, y: 5 }, { key: b, x: 5, y: 5 },
+    ];
+}
+function gardenStripZone() {
+    return [{ x: 1, y: 5 }, { x: 4, y: 5 }];
+}
 
 function gardenRow(key, y, xs) {
     return xs.map(function (x) {
@@ -44,10 +69,10 @@ function gardenZoneRows(ys, xs) {
     return cells;
 }
 
-// Golden clover wiki layout (0-indexed), full 6-row version: by the time P15
+// Golden clover wiki layout (0-indexed), full 6-row version: by the time P14
 // runs, the elderwort shelf has retired (its consumers ichorpuff/everdaisy
-// are prerequisites of reaching P15), so the bottom row is free again.
-var GARDEN_P15_PLOTS = [
+// are prerequisites of reaching P14), so the bottom row is free again.
+var GARDEN_P14_PLOTS = [
     [0, 0], [1, 0], [3, 0], [5, 0],
     [1, 1], [3, 1], [5, 1],
     [0, 2], [3, 2], [5, 2],
@@ -56,15 +81,15 @@ var GARDEN_P15_PLOTS = [
     [0, 5], [2, 5], [4, 5], [5, 5],
 ];
 
-function gardenP15Cells() {
-    return GARDEN_P15_PLOTS.map(function (c) {
+function gardenP14Cells() {
+    return GARDEN_P14_PLOTS.map(function (c) {
         return { key: "clover", x: c[0], y: c[1] };
     });
 }
 
-function gardenP15Zone() {
+function gardenP14Zone() {
     var used = {};
-    GARDEN_P15_PLOTS.forEach(function (c) {
+    GARDEN_P14_PLOTS.forEach(function (c) {
         used[c[0] + "," + c[1]] = 1;
     });
     var zone = [];
@@ -80,7 +105,7 @@ function gardenP15Zone() {
 // still locked, all its parent seeds are unlocked, and none of its tiles are
 // claimed by an earlier phase or fixture. `partial` phases (background Baker's
 // wheat for the 0.1% bakeberry mutation) just use whatever tiles are free.
-// The P16 queenbeet grid is handled separately in gardenBuildPlan().
+// The P15 queenbeet grid is handled separately in gardenBuildPlan().
 var gardenPhases = [
     { id: "P1", targets: ["thumbcorn"], rollNeeds: { bakerWheat: 2 },
         cells: gardenRow("bakerWheat", 1, GARDEN_X_LEFT),
@@ -121,80 +146,55 @@ var gardenPhases = [
     { id: "P10-1", targets: ["greenRot"],
         cells: gardenRow("whiteMildew", 1, GARDEN_X_EVEN).concat(gardenRow("clover", 1, GARDEN_X_ODD)),
         zone: gardenZoneRows([0, 2], GARDEN_X_ALL) },
-    { id: "P10-2", targets: ["keenmoss"],
-        cells: gardenRow("greenRot", 1, GARDEN_X_EVEN).concat(gardenRow("brownMold", 1, GARDEN_X_ODD)),
-        zone: gardenZoneRows([0, 2], GARDEN_X_ALL) },
     // Contamination-splitting layout: the mushroom keeps even spacing on row
     // 0, the partner sits on row 2 (two rows apart: no orthogonal contact),
     // and the shared mutation row y=1 between them touches both species.
     // Staying inside rows 0-2 leaves lane 2 (rows 3-5) free, so these run in
-    // parallel with P9/P12b instead of conflicting with their zones.
-    { id: "P10-3", targets: ["wrinklegill"],
+    // parallel with P9/P11b instead of conflicting with their zones.
+    { id: "P10-2", targets: ["wrinklegill"],
         cells: gardenRow("crumbspore", 0, GARDEN_X_EVEN).concat(gardenRow("brownMold", 2, GARDEN_X_EVEN)),
         zone: gardenZoneRows([1], GARDEN_X_ALL) },
-    { id: "P10-4", targets: ["glovemorel"],
+    { id: "P10-3", targets: ["glovemorel"],
         cells: gardenRow("crumbspore", 0, GARDEN_X_EVEN).concat(gardenRow("thumbcorn", 2, GARDEN_X_EVEN)),
         zone: gardenZoneRows([1], GARDEN_X_ALL) },
-    { id: "P10-5", targets: ["cheapcap"],
+    { id: "P10-4", targets: ["cheapcap"],
         cells: gardenRow("crumbspore", 0, GARDEN_X_EVEN).concat(gardenRow("shimmerlily", 2, GARDEN_X_EVEN)),
         zone: gardenZoneRows([1], GARDEN_X_ALL) },
     // doughshroom needs crumbspore M x2 at once -> keep the generation in sync
-    { id: "P10-6", targets: ["doughshroom"], syncSpecies: "crumbspore", rollNeeds: { crumbspore: 2 },
+    { id: "P10-5", targets: ["doughshroom"], syncSpecies: "crumbspore", rollNeeds: { crumbspore: 2 },
         cells: gardenRow("crumbspore", 1, GARDEN_X_EVEN),
         zone: gardenZoneRows([0, 2], GARDEN_X_ALL) },
-    { id: "P10-7", targets: ["foolBolete"],
+    { id: "P10-6", targets: ["foolBolete"],
         cells: gardenRow("doughshroom", 0, GARDEN_X_EVEN).concat(gardenRow("greenRot", 2, GARDEN_X_EVEN)),
         zone: gardenZoneRows([1], GARDEN_X_ALL) },
-    { id: "P10-8", targets: ["wardlichen"],
-        cells: gardenRow("cronerice", 4, GARDEN_X_EVEN).concat(gardenRow("whiteMildew", 4, GARDEN_X_ODD)),
-        zone: gardenZoneRows([3, 5], GARDEN_X_ALL) },
-    { id: "P10-9", targets: ["drowsyfern"],
-        cells: gardenRow("chocoroot", 1, GARDEN_X_EVEN).concat(gardenRow("keenmoss", 1, GARDEN_X_ODD)),
-        zone: gardenZoneRows([0, 2], GARDEN_X_ALL) },
-    { id: "P11-1", targets: ["whiskerbloom"],
-        cells: gardenRow("shimmerlily", 1, GARDEN_X_EVEN).concat(gardenRow("whiteChocoroot", 1, GARDEN_X_ODD)),
-        zone: gardenZoneRows([0, 2], GARDEN_X_ALL) },
-    // Lane-2 duplicate (same pattern as P2b/P12b): keeps the whiskerbloom
-    // hunt rolling when lane 1 is lent to a mushroom phase, and doubles it
-    // when both lanes are free.
-    { id: "P11-1b", targets: ["whiskerbloom"],
-        cells: gardenRow("shimmerlily", 4, GARDEN_X_EVEN).concat(gardenRow("whiteChocoroot", 4, GARDEN_X_ODD)),
-        zone: gardenZoneRows([3, 5], GARDEN_X_ALL) },
-    // nursetulip needs whiskerbloom M x2 at once -> keep the generation in sync
-    { id: "P11-2", targets: ["nursetulip"], syncSpecies: "whiskerbloom", rollNeeds: { whiskerbloom: 2 },
-        cells: gardenRow("whiskerbloom", 1, GARDEN_X_ALL),
-        zone: gardenZoneRows([0, 2], GARDEN_X_ALL) },
-    { id: "P11-3", targets: ["chimerose"],
-        cells: gardenRow("shimmerlily", 1, GARDEN_X_EVEN).concat(gardenRow("whiskerbloom", 1, GARDEN_X_ODD)),
-        zone: gardenZoneRows([0, 2], GARDEN_X_ALL) },
     // tidygrass is 0.2%, so run the same recipe on both lanes when lane 2 is free
-    { id: "P12a", targets: ["tidygrass"],
+    { id: "P11a", targets: ["tidygrass"],
         cells: gardenRow("bakerWheat", 1, GARDEN_X_EVEN).concat(gardenRow("whiteChocoroot", 1, GARDEN_X_ODD)),
         zone: gardenZoneRows([0, 2], GARDEN_X_ALL) },
-    { id: "P12b", targets: ["tidygrass"],
+    { id: "P11b", targets: ["tidygrass"],
         cells: gardenRow("bakerWheat", 4, GARDEN_X_EVEN).concat(gardenRow("whiteChocoroot", 4, GARDEN_X_ODD)),
         zone: gardenZoneRows([3, 5], GARDEN_X_ALL) },
     // The elderwort shelf cells are listed as parents so the soil logic waits
     // for them to mature before switching to wood chips.
-    { id: "P13", targets: ["ichorpuff"],
+    { id: "P12", targets: ["ichorpuff"],
         cells: gardenRow("crumbspore", 3, [1, 3, 5]).concat(gardenRow("elderwort", 5, GARDEN_X_ALL)),
         zone: gardenZoneRows([4], GARDEN_X_ALL) },
-    { id: "P14", targets: ["everdaisy"],
+    { id: "P13", targets: ["everdaisy"],
         cells: gardenRow("tidygrass", 3, GARDEN_X_ALL).concat(gardenRow("elderwort", 5, GARDEN_X_ALL)),
         zone: gardenZoneRows([4], [1, 2, 3, 4]) },
-    { id: "P16a", targets: ["queenbeet"],
+    { id: "P15a", targets: ["queenbeet"],
         cells: gardenRow("bakeberry", 1, GARDEN_X_EVEN).concat(gardenRow("chocoroot", 1, GARDEN_X_ODD)),
         zone: gardenZoneRows([0, 2], GARDEN_X_ALL) },
-    // Evaluated after P16a on purpose: the queenbeet hunt is a short, already
+    // Evaluated after P15a on purpose: the queenbeet hunt is a short, already
     // -invested sprint whose sprout then frees the whole board for ~67 ticks
-    // - almost exactly goldenClover's expected hunt time - so P15 slots into
+    // - almost exactly goldenClover's expected hunt time - so P14 slots into
     // that window instead of evicting a growing bakeberry row.
     // goldenClover needs clover M x4 AT ONCE: desynced cells are mature-4
     // only ~20% of the time (0.67^4) vs ~67% for a locked generation, so the
     // field replants in lockstep like the other same-species recipes.
-    { id: "P15", targets: ["goldenClover"], rollNeeds: { clover: 4 }, syncSpecies: "clover",
-        cells: gardenP15Cells(),
-        zone: gardenP15Zone() },
+    { id: "P14", targets: ["goldenClover"], rollNeeds: { clover: 4 }, syncSpecies: "clover",
+        cells: gardenP14Cells(),
+        zone: gardenP14Zone() },
     // Everdaisy booster: with queenbeet secured, lane 1 has nothing left to
     // hunt until everdaisy lands, so grow a second elderwort row on y=1.
     // Once mature, (1,2)-(4,2) see 3 elderwort above + 3 tidygrass below,
@@ -204,13 +204,59 @@ var gardenPhases = [
     // Its corners can only ever fire for ichorpuff (elder x1 + crumb x1);
     // everdaisy needs 3+3 which corners can't see, so once ichorpuff is
     // secured they're released to the CpS backfill.
-    { id: "P14b", targets: ["everdaisy"], aux: true,
+    { id: "P13b", targets: ["everdaisy"], aux: true,
         cells: gardenRow("elderwort", 1, GARDEN_X_ALL),
         zone: function (have) {
             return have("ichorpuff")
                 ? gardenZoneRows([2], [1, 2, 3, 4])
                 : gardenZoneRows([2], GARDEN_X_ALL);
         } },
+    // Strip-seed normal phases, demoted to the lowest hunt priority: none
+    // of these six seeds gates the grid start anymore (they finish on the
+    // row-5 strip during the JQB lottery), so pre-grid they only get lanes
+    // that no grid-gating hunt wants. Same relative order as the strip:
+    // the slow-sprouting drowsyfern chain first.
+    { id: "P16-1", targets: ["keenmoss"],
+        cells: gardenRow("greenRot", 1, GARDEN_X_EVEN).concat(gardenRow("brownMold", 1, GARDEN_X_ODD)),
+        zone: gardenZoneRows([0, 2], GARDEN_X_ALL) },
+    { id: "P16-2", targets: ["drowsyfern"],
+        cells: gardenRow("chocoroot", 1, GARDEN_X_EVEN).concat(gardenRow("keenmoss", 1, GARDEN_X_ODD)),
+        zone: gardenZoneRows([0, 2], GARDEN_X_ALL) },
+    { id: "P16-3", targets: ["whiskerbloom"],
+        cells: gardenRow("shimmerlily", 1, GARDEN_X_EVEN).concat(gardenRow("whiteChocoroot", 1, GARDEN_X_ODD)),
+        zone: gardenZoneRows([0, 2], GARDEN_X_ALL) },
+    // Lane-2 duplicate (same pattern as P2b/P11b): keeps the whiskerbloom
+    // hunt rolling when lane 1 is lent to a mushroom phase, and doubles it
+    // when both lanes are free.
+    { id: "P16-3b", targets: ["whiskerbloom"],
+        cells: gardenRow("shimmerlily", 4, GARDEN_X_EVEN).concat(gardenRow("whiteChocoroot", 4, GARDEN_X_ODD)),
+        zone: gardenZoneRows([3, 5], GARDEN_X_ALL) },
+    // nursetulip needs whiskerbloom M x2 at once -> keep the generation in sync
+    { id: "P16-4", targets: ["nursetulip"], syncSpecies: "whiskerbloom", rollNeeds: { whiskerbloom: 2 },
+        cells: gardenRow("whiskerbloom", 1, GARDEN_X_ALL),
+        zone: gardenZoneRows([0, 2], GARDEN_X_ALL) },
+    { id: "P16-5", targets: ["chimerose"],
+        cells: gardenRow("shimmerlily", 1, GARDEN_X_EVEN).concat(gardenRow("whiskerbloom", 1, GARDEN_X_ODD)),
+        zone: gardenZoneRows([0, 2], GARDEN_X_ALL) },
+    { id: "P16-6", targets: ["wardlichen"],
+        cells: gardenRow("cronerice", 4, GARDEN_X_EVEN).concat(gardenRow("whiteMildew", 4, GARDEN_X_ODD)),
+        zone: gardenZoneRows([3, 5], GARDEN_X_ALL) },
+    // Strip phases: row-5 hunts for GARDEN_STRIP_SEEDS while the grid holds
+    // the inner 5x5 (strip: true = only active during gridActive; before the
+    // grid these seeds are hunted by their normal phases above). One at a
+    // time: the first incomplete one claims row 5, the rest wait.
+    { id: "S-keenmoss", targets: ["keenmoss"], strip: true,
+        cells: gardenStripCells("greenRot", "brownMold"), zone: gardenStripZone() },
+    { id: "S-drowsyfern", targets: ["drowsyfern"], strip: true,
+        cells: gardenStripCells("chocoroot", "keenmoss"), zone: gardenStripZone() },
+    { id: "S-whiskerbloom", targets: ["whiskerbloom"], strip: true,
+        cells: gardenStripCells("shimmerlily", "whiteChocoroot"), zone: gardenStripZone() },
+    { id: "S-nursetulip", targets: ["nursetulip"], strip: true,
+        cells: gardenStripCells("whiskerbloom", "whiskerbloom"), zone: gardenStripZone() },
+    { id: "S-chimerose", targets: ["chimerose"], strip: true,
+        cells: gardenStripCells("shimmerlily", "whiskerbloom"), zone: gardenStripZone() },
+    { id: "S-wardlichen", targets: ["wardlichen"], strip: true,
+        cells: gardenStripCells("cronerice", "whiteMildew"), zone: gardenStripZone() },
     // Background wheat lanes: bakeberry is only 0.1%, so keep wheat in any free
     // lane tiles from P1 all the way until it finally unlocks.
     { id: "fillerL1", targets: ["bakeberry"], partial: true, rollNeeds: { bakerWheat: 2 },
@@ -245,9 +291,9 @@ var gardenPhases = [
 // relocate +3 rows onto lane 2 when their home tiles are claimed by another
 // phase or squatted by a protected sprout.
 gardenPhases.forEach(function (p) {
-    if (["P1", "P2", "P4", "P5", "P7", "P8", "P10-1", "P10-2", "P10-3", "P10-4",
-        "P10-5", "P10-6", "P10-7", "P10-9", "P11-1", "P11-2", "P11-3", "P12a",
-        "P16a"].indexOf(p.id) !== -1) {
+    if (["P1", "P2", "P4", "P5", "P7", "P8", "P10-1", "P16-1", "P10-2", "P10-3",
+        "P10-4", "P10-5", "P10-6", "P16-2", "P16-3", "P16-4", "P16-5", "P11a",
+        "P15a"].indexOf(p.id) !== -1) {
         p.shiftable = true;
     }
 });
@@ -363,12 +409,15 @@ function gardenBuildPlan() {
     }
 
     // The grid starts once the pre-grid seeds are SECURED (unlocked or
-    // sprouted): the 27 queenbeets can grow out while e.g. the everdaisy
+    // sprouted): the 21 queenbeets can grow out while e.g. the everdaisy
     // sprout finishes its ~250-tick maturation, saving half a day per cycle.
-    // Queenbeet itself must be truly unlocked (it has to be plantable) and
-    // the sacrifice gate stays strictly unlock-based.
+    // Strip seeds don't gate the start either - their hunts continue on the
+    // row-5 strip while the JQB lottery runs (the whole point: the spawn
+    // wait is the cycle's longest pole, so everything that CAN overlap it
+    // does). Queenbeet itself must be truly unlocked (it has to be
+    // plantable) and the sacrifice gate stays strictly unlock-based.
     var preComplete = gardenUnlocked("queenbeet") && Object.keys(G.plants).every(function (key) {
-        return GARDEN_LATE_SEEDS[key] || have(key);
+        return GARDEN_LATE_SEEDS[key] || GARDEN_STRIP_SEEDS.indexOf(key) !== -1 || have(key);
     });
     var lateComplete = gardenUnlocked("queenbeetLump") && gardenUnlocked("duketater") && gardenUnlocked("shriekbulb");
     plan.gridActive = preComplete && (!lateComplete || !!plan.jqb);
@@ -405,8 +454,8 @@ function gardenBuildPlan() {
     }
 
     // Fixture: resident elderwort shelf on y=5, kept while its consumers
-    // (P13 ichorpuff, P14 everdaisy) are still open; retiring it afterwards
-    // frees the bottom row for P15's full clover layout.
+    // (P12 ichorpuff, P13 everdaisy) are still open; retiring it afterwards
+    // frees the bottom row for P14's full clover layout.
     var shelfDone = have("ichorpuff") && have("everdaisy");
     if (gardenUnlocked("elderwort") && !shelfDone && !plan.gridActive) {
         GARDEN_X_ALL.forEach(function (x) {
@@ -415,9 +464,10 @@ function gardenBuildPlan() {
     }
 
     // Fixture: cronerice trio, planted in P2 and kept while any recipe that
-    // needs it is still open (regrowing it later would cost 74 ticks)
+    // needs it is still open (regrowing it later would cost 74 ticks). Once
+    // the grid owns row 4, S-wardlichen grows its own cronerice on the strip.
     var cronericeDone = GARDEN_CRONERICE_USERS.every(have);
-    if (gardenUnlocked("cronerice") && !cronericeDone) {
+    if (gardenUnlocked("cronerice") && !cronericeDone && !plan.gridActive) {
         GARDEN_X_EVEN.forEach(function (x) {
             claim(x, 4, "plant", "cronerice", "trio");
         });
@@ -426,19 +476,19 @@ function gardenBuildPlan() {
     if (plan.gridActive) {
         if (plan.jqb) {
             // Protect the JQB tile itself
-            claim(plan.jqb.x, plan.jqb.y, "plant", "queenbeetLump", "P16-jqb");
+            claim(plan.jqb.x, plan.jqb.y, "plant", "queenbeetLump", "P15-jqb");
             // Refill tiles where a neighboring queenbeet died with elderwort:
             // each one ages the JQB 3% faster. Living queenbeets are left alone.
             if (gardenUnlocked("elderwort")) {
                 gardenNeighbors(plan.jqb.x, plan.jqb.y).forEach(function (c) {
                     var t = G.plot[c.y][c.x];
                     if (t[0] === 0 || G.plantsById[t[0] - 1].key === "elderwort") {
-                        claim(c.x, c.y, "plant", "elderwort", "P16-ring");
+                        claim(c.x, c.y, "plant", "elderwort", "P15-ring");
                     }
                 });
             }
         }
-        // P16c: while a JQB grows, shriekbulb is hunted via duketater x3 at
+        // P15c: while a JQB grows, shriekbulb is hunted via duketater x3 at
         // ANY age (0.5% - five times the queenbeet M x5 holes, and with no
         // maturation wait): a duketater row on the edge farthest from the
         // JQB, with the neighboring row kept open as the roll pocket (its
@@ -449,64 +499,65 @@ function gardenBuildPlan() {
             var dRow = plan.jqb.y >= 3 ? 0 : 5;
             var pRow = dRow === 0 ? 1 : 4;
             for (var dx2 = 0; dx2 < 6; dx2++) {
-                claim(dx2, dRow, "plant", "duketater", "P16c");
-                claim(dx2, pRow, "zone", null, "P16c");
+                claim(dx2, dRow, "plant", "duketater", "P15c");
+                claim(dx2, pRow, "zone", null, "P15c");
             }
-        }
-        // The corner hole (5,5) only has 3 neighbors, so it can never roll
-        // JQB (needs 8) or shriekbulb (needs 5): it's a duketater-only slot.
-        // Once duketater is secured it becomes worthless as a hole, so farm a
-        // Baker's wheat there for its +1% CpS passive instead.
-        if (have("duketater") && gardenUnlocked("bakerWheat")) {
-            claim(5, 5, "plant", "bakerWheat", "P16-cps");
         }
         // Retirement: once a JQB is growing and duketater is secured, the
         // rest of the grid has nothing left to produce (the elderwort ring
         // shares tiles with every other JQB hole, the side holes only roll
-        // junk, and shriekbulb is hunted via the P16c duketater row instead).
+        // junk, and shriekbulb is hunted via the P15c duketater row instead).
         // Stop replanting queenbeets; each remaining one is harvested at
         // maturity for its yield, and every freed tile (holes included) grows
         // Baker's wheat for its +1% CpS passive.
         plan.gridRetire = !!plan.jqb && have("duketater");
 
-        // Border trim: JQB needs 8 mature queenbeet neighbors, so the edge
-        // holes (5 neighbors, 3 in the corner) can never roll it - only the
-        // four inner holes (1,1),(3,1),(1,3),(3,3) live, and they draw all
-        // their neighbors from the inner 5x5. The x=5/y=5 border (4 edge
-        // holes + 6 queenbeets feeding only them) exists solely for the
-        // duketater (M x2) and shriekbulb (M x5) hunts; once both are
-        // secured, grow Baker's wheat on those 11 tiles instead (+11% CpS
-        // for the days-long JQB wait, and 6 fewer queenbeets to replant
-        // each generation). During retirement the normal harvest-then-wheat
-        // path already covers the border gracefully.
-        var gridTrim = !plan.gridRetire && have("duketater") && have("shriekbulb");
-        // Queenbeet grid: plant everything except the 9 odd/odd tiles, the
-        // JQB/duketater/shriekbulb mutation slots ((5,5) may already be
-        // claimed as wheat above; first claim wins).
+        // Border: JQB needs 8 mature queenbeet neighbors, so a hole on the
+        // x=5/y=5 border (5 neighbors, 3 in the corner) can never roll it -
+        // only the four inner holes (1,1),(3,1),(1,3),(3,3) live, and they
+        // draw all their neighbors from the inner 5x5. So the border NEVER
+        // grows queenbeets (21, not 27): while duketater/shriekbulb are
+        // still missing, the empty border tiles next to the inner beets are
+        // free extra duketater roll sites (M x2 reaches them; ~14 sites vs
+        // the old 9 holes); row 5 doubles as the strip-hunt lane. Once both
+        // are secured and no strip hunt remains, the border becomes Baker's
+        // wheat (+11% CpS for the days-long JQB wait).
+        var gridLate = have("duketater") && have("shriekbulb");
+        plan.gridLate = gridLate;
+        var stripOpen = GARDEN_STRIP_SEEDS.some(function (k) { return !have(k); });
+        // Queenbeet grid: plant the inner 5x5 except the 4 hole tiles.
         var gridCells = [];
         var qbId = G.plants["queenbeet"].id;
         for (var gy = 0; gy < 6; gy++) {
             for (var gx = 0; gx < 6; gx++) {
-                if (gridTrim && (gx === 5 || gy === 5) && !plan.claims[gx + "," + gy]) {
-                    if (gardenUnlocked("bakerWheat")) {
-                        claim(gx, gy, "plant", "bakerWheat", "P16-cps");
+                if (gx === 5 || gy === 5) {
+                    if (plan.claims[gx + "," + gy]) continue; // P15c row / JQB ring
+                    if (gy === 5 && (stripOpen || !gridLate)) {
+                        continue; // strip phases claim row 5; leftovers stay open
+                    }
+                    if (gridLate) {
+                        if (gardenUnlocked("bakerWheat")) {
+                            claim(gx, gy, "plant", "bakerWheat", "P15-cps");
+                        }
+                    } else {
+                        claim(gx, gy, "zone", null, "P15-grid"); // duketater roll site
                     }
                     continue;
                 }
                 if (gx % 2 === 1 && gy % 2 === 1) {
                     if (plan.gridRetire && gardenUnlocked("bakerWheat")) {
-                        claim(gx, gy, "plant", "bakerWheat", "P16-cps");
+                        claim(gx, gy, "plant", "bakerWheat", "P15-cps");
                     } else {
-                        claim(gx, gy, "zone", null, "P16-grid");
+                        claim(gx, gy, "zone", null, "P15-grid");
                     }
                     continue;
                 }
                 if (plan.claims[gx + "," + gy]) continue; // JQB / ring / (5,5) wheat
                 if (plan.gridRetire && G.plot[gy][gx][0] - 1 !== qbId) {
-                    claim(gx, gy, "plant", "bakerWheat", "P16-cps");
+                    claim(gx, gy, "plant", "bakerWheat", "P15-cps");
                     continue;
                 }
-                claim(gx, gy, "plant", "queenbeet", "P16-grid");
+                claim(gx, gy, "plant", "queenbeet", "P15-grid");
                 gridCells.push({ key: "queenbeet", x: gx, y: gy });
             }
         }
@@ -554,11 +605,13 @@ function gardenBuildPlan() {
                 if (lateGap || outlier) plan.deferred[c.x + "," + c.y] = true;
             });
         }
-        plan.active.push({ phase: { id: "P16-grid" }, cells: gridCells });
+        plan.active.push({ phase: { id: "P15-grid" }, cells: gridCells });
     }
 
     gardenPhases.forEach(function (phase) {
         if (phase.targets.every(have)) return; // done (unlocked or sprouted)
+        if (phase.strip && !plan.gridActive) return; // strip forms only run beside the grid
+        if (!phase.strip && plan.gridActive) return; // the grid owns the board otherwise
         if (phase.weed) {
             plan.weedActive = true;
             // The x4-5 spawn corridor is only needed while meddleweed itself
@@ -577,7 +630,7 @@ function gardenBuildPlan() {
         if (phase.when && !phase.when(have)) return; // custom activation condition not met
         if (!phase.cells.every(function (c) { return gardenUnlocked(c.key); })) return; // parents not available yet
         var cells = phase.cells;
-        // A zone may be a function of the current unlock state (e.g. P14b's
+        // A zone may be a function of the current unlock state (e.g. P13b's
         // row-2 corners only matter while ichorpuff is still hunted)
         var zone = typeof phase.zone === "function" ? phase.zone(have) : (phase.zone || []);
         if (phase.partial) {
@@ -606,11 +659,29 @@ function gardenBuildPlan() {
                     cells: cells.map(function (c) { return { key: c.key, x: c.x, y: 5 - c.y }; }),
                     zone: zone.map(function (c) { return { x: c.x, y: 5 - c.y }; }),
                 });
+                // Middle variant (row 3): once the elderwort shelf owns row
+                // 5, the row-4 mirror is left with row 3 as its only live
+                // mutation row. A single-row recipe can sit on row 3
+                // instead, flanked by rows 2 AND 4 - row 2 is usually
+                // lane 1's mutation row, but an empty tile rolls every
+                // recipe its neighbors satisfy, so sharing costs nothing.
+                // Contaminators are excluded: their prize sprouts would
+                // land orthogonally adjacent to the parent row and get
+                // overwritten (the split form keeps rolls diagonal-only).
+                var midContam = cells.some(function (c) {
+                    return c.key === "crumbspore" || c.key === "doughshroom";
+                });
+                if (!midContam && cells.every(function (c) { return c.y === 1; })) {
+                    options.push({
+                        cells: cells.map(function (c) { return { key: c.key, x: c.x, y: c.y + 2 }; }),
+                        zone: zone.map(function (c) { return { x: c.x, y: c.y + 2 }; }),
+                    });
+                }
             }
             options = options.filter(function (o) { return o.cells.every(freeFor); });
             // A lane whose mutation zone is entirely dead is unusable: the
             // parents could be planted, but no tile could ever host the
-            // mutation (e.g. P10-7 mirrored under a full P9 row 4 - and by
+            // mutation (e.g. P10-6 mirrored under a full P9 row 4 - and by
             // the time that row frees up, the elderwort shelf evicts the
             // rig). Hard-dead = the tile will hold an earlier phase's plant
             // or a protected locked sprout squats it: no reclaim path, veto
@@ -633,13 +704,22 @@ function gardenBuildPlan() {
                 if (!p.unlocked) return true;
                 return p.key !== "bakerWheat" && !established;
             };
-            options = options.filter(function (o) {
-                if (!o.zone.length) return true;
-                var established = o.cells.some(function (c) {
+            var optEstablished = function (o) {
+                return o.cells.some(function (c) {
                     return c.key !== "bakerWheat" &&
                         G.plot[c.y][c.x][0] - 1 === G.plants[c.key].id;
                 });
-                return !o.zone.every(function (c) { return zoneDead(c, established); });
+            };
+            var zoneAlive = function (o) {
+                var est = optEstablished(o);
+                var n = 0;
+                o.zone.forEach(function (c) {
+                    if (!zoneDead(c, est)) n++;
+                });
+                return n;
+            };
+            options = options.filter(function (o) {
+                return !o.zone.length || zoneAlive(o) > 0;
             });
             if (!options.length) return; // every lane is held or has no live mutation tile
             // Tiebreak: prefer the lane that overlaps other phases' territory
@@ -667,6 +747,13 @@ function gardenBuildPlan() {
             };
             options.sort(function (a, b) {
                 var d = planted(b) - planted(a);
+                if (d) return d;
+                // More live mutation tiles = more simultaneous rolls (e.g.
+                // the middle variant's 12 vs the shelf-crippled mirror's 6).
+                // Ranked below stickiness so an established hunt is never
+                // yanked mid-growth, and above overlap so a shared-but-live
+                // mutation row beats an exclusive-but-dead one.
+                d = zoneAlive(b) - zoneAlive(a);
                 if (d) return d;
                 d = overlap(a) - overlap(b);
                 if (d) return d;
@@ -709,7 +796,7 @@ function gardenBuildPlan() {
             // within pairing range is mature - pairing range = Chebyshev
             // distance 2, the farthest two parents can sit while still
             // sharing a roll tile. A mature partner elsewhere in the row
-            // doesn't help this cell (e.g. P10-8: mildew@1 next to a mature
+            // doesn't help this cell (e.g. P16-6: mildew@1 next to a mature
             // cronerice@0 plants now, while mildew@3,@5 wait for their own
             // growing cronerice@2,@4 instead of dying uselessly in between).
             // The cell then waits for the slowest such species. No flat
@@ -769,7 +856,7 @@ function gardenBuildPlan() {
         // (waiting on a slow partner), no mutation can land anyway, so the
         // mutation rows stay unclaimed and a later phase or filler can keep
         // working there (e.g. the whiskerbloom hunt keeps rolling on row 1
-        // while P10-7's doughshroom spends 42 ticks maturing). Once the
+        // while P10-6's doughshroom spends 42 ticks maturing). Once the
         // deferral lifts, the zone gets claimed and squatters are evicted
         // with a few ticks to spare before the rolls start.
         var hasDeferred = cells.some(function (c) {
@@ -812,6 +899,9 @@ function gardenBuildPlan() {
         for (var cy = 0; cy < 6; cy++) {
             for (var cx = 0; cx < 6; cx++) {
                 if (plan.claims[cx + "," + cy]) continue;
+                // While duketater/shriekbulb are still hunted, unclaimed
+                // grid-border tiles are roll sites, not idle ground.
+                if (plan.gridActive && !plan.gridLate && (cx === 5 || cy === 5)) continue;
                 var ct = G.plot[cy][cx];
                 if (ct[0] && !G.plantsById[ct[0] - 1].unlocked) continue; // protected sprout
                 claim(cx, cy, "plant", "bakerWheat", "cps-backfill");
@@ -923,7 +1013,7 @@ function gardenCleanupPass(plan) {
             // to ever share the cohort's mature window. In retirement (JQB
             // growing, duketater/shriekbulb secured) each beet is instead
             // harvested at maturity for its yield and never replanted.
-            if (plant.key === "queenbeet" && cur && cur.phase === "P16-grid") {
+            if (plant.key === "queenbeet" && cur && cur.phase === "P15-grid") {
                 if (plan.gridRetire) {
                     if (age >= plant.mature) {
                         G.harvest(x, y);
