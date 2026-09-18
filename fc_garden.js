@@ -41,6 +41,13 @@ var GARDEN_CRONERICE_USERS = ["gildmillet", "elderwort"];
 // whiskerbloom line, then wardlichen.
 var GARDEN_STRIP_SEEDS = ["keenmoss", "drowsyfern", "whiskerbloom", "nursetulip", "chimerose", "wardlichen"];
 
+// Every fungus-species hunt target (fungus mutations are suppressed to zero
+// inside a tidygrass/everdaisy aura, so the everdaisy rig must not go up
+// while any of these is still open). The strip seeds are all non-fungus,
+// so the row-5 hunts are never affected.
+var GARDEN_FUNGUS_TARGETS = ["whiteMildew", "greenRot", "wrinklegill",
+    "glovemorel", "cheapcap", "doughshroom", "foolBolete", "ichorpuff"];
+
 // Strip layout A@0,gap,B@2,A@3,gap,B@5: both gaps see one A and one B (or
 // two of the same species when a === b).
 function gardenStripCells(a, b) {
@@ -179,7 +186,15 @@ var gardenPhases = [
     { id: "P12", targets: ["ichorpuff"],
         cells: gardenRow("crumbspore", 3, [1, 3, 5]).concat(gardenRow("elderwort", 5, GARDEN_X_ALL)),
         zone: gardenZoneRows([4], GARDEN_X_ALL) },
-    { id: "P13", targets: ["everdaisy"],
+    // Tidygrass zeroes plotBoost[2] (the weed/fungus repellent value) in a
+    // 5x5 aura, even while still growing - and fungus MUTATIONS roll
+    // against that value, so a tidygrass row on y=3 makes every fungus
+    // hunt on rows 1-5 impossible (this silently stalled a doughshroom
+    // hunt for a full day). The everdaisy rig therefore waits until every
+    // fungus-species target is secured; fungus hunts are fast when
+    // unsuppressed, and this also keeps the later everdaisy sprout's own
+    // 3x3 aura harmless.
+    { id: "P13", targets: ["everdaisy"], requireHave: GARDEN_FUNGUS_TARGETS,
         cells: gardenRow("tidygrass", 3, GARDEN_X_ALL).concat(gardenRow("elderwort", 5, GARDEN_X_ALL)),
         zone: gardenZoneRows([4], [1, 2, 3, 4]) },
     { id: "P15a", targets: ["queenbeet"],
@@ -779,6 +794,22 @@ function gardenBuildPlan() {
             cells = cells.map(function (c) {
                 if (!blockedCell(c)) return c;
                 var alts = [c.x + 1, c.x - 1];
+                // Same-species recipes live on their x-spacing: prefer the
+                // sideways step that stays within pairing range (Chebyshev
+                // <=2) of a sibling, so the dodged parent still shares roll
+                // tiles. A crumbspore dodged from (4,1) to (5,1) pairs with
+                // nothing; dodged to (3,1) it still pairs with (2,1).
+                var sibs = origCells.filter(function (o) {
+                    return o.key === c.key && (o.x !== c.x || o.y !== c.y);
+                });
+                if (sibs.length) {
+                    var pairs = function (ax) {
+                        return sibs.some(function (o) {
+                            return Math.abs(o.x - ax) <= 2 && Math.abs(o.y - c.y) <= 2;
+                        }) ? 0 : 1;
+                    };
+                    alts.sort(function (a, b) { return pairs(a) - pairs(b); });
+                }
                 for (var ai = 0; ai < alts.length; ai++) {
                     if (alts[ai] < 0 || alts[ai] > 5) continue;
                     var alt = { key: c.key, x: alts[ai], y: c.y };
@@ -1175,9 +1206,16 @@ function gardenSoilPass(plan) {
             entry.cells.forEach(function (c) {
                 required[c.key] = need[c.key] || 1;
             });
+            // Fungus/weed mutations also roll against plotBoost[2] (zeroed
+            // by a tidygrass/everdaisy aura): a suppressed tile is not a
+            // site no matter what stands around it.
+            var tgt = (entry.phase.targets || [])[0];
+            var tgtFungal = tgt && G.plants[tgt] && (G.plants[tgt].fungus || G.plants[tgt].weed);
             for (var ry = 0; ry < 6; ry++) {
                 for (var rx = 0; rx < 6; rx++) {
                     if (G.plot[ry][rx][0]) continue;
+                    if (tgtFungal && G.plotBoost && G.plotBoost[ry] &&
+                        G.plotBoost[ry][rx] && !G.plotBoost[ry][rx][2]) continue;
                     var counts = {};
                     gardenNeighbors(rx, ry).forEach(function (n) {
                         var t = G.plot[n.y][n.x];
