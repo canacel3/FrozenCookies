@@ -366,6 +366,8 @@ function gardenBuildPlan() {
         gridActive: false,
         gridCull: false, // harvest leftover queenbeets so the grid replants in lockstep
         gridMedian: null, // cohort median age; beets >20 age away get culled
+        syncCull: {}, // "x,y" -> true: stranded sync-generation survivor, harvest now
+        syncHold: {}, // "x,y" -> true: sync-generation gap; skip planting but DON'T lend the zone
         thinDup: {}, // "x,y" -> true: duplicate locked sprout squatting a JQB hole
         jqb: null,
     };
@@ -843,20 +845,45 @@ function gardenBuildPlan() {
         if (phase.syncSpecies) {
             var syncPlant = G.plants[phase.syncSpecies];
             var oldestSync = -1;
+            var livingSync = 0;
             cells.forEach(function (c) {
                 if (c.key !== phase.syncSpecies) return;
                 var t = G.plot[c.y][c.x];
-                if (t[0] - 1 === syncPlant.id) oldestSync = Math.max(oldestSync, t[1]);
+                if (t[0] - 1 === syncPlant.id) {
+                    oldestSync = Math.max(oldestSync, t[1]);
+                    livingSync++;
+                }
             });
             // Hold gaps only once a late refill could no longer share the
             // cohort's mature window (joint maturity needs refillAge + mature
             // < 100): a plant that failed to land a few ticks late can still
             // join the generation, so refill it instead of running 5/6.
             if (oldestSync >= 0 && oldestSync > 100 - syncPlant.mature - 5) {
-                cells.forEach(function (c) {
-                    if (c.key !== phase.syncSpecies) return;
-                    if (!G.plot[c.y][c.x][0]) plan.deferred[c.x + "," + c.y] = true;
-                });
+                var needSync = (phase.rollNeeds && phase.rollNeeds[phase.syncSpecies]) || 2;
+                if (livingSync < needSync) {
+                    // Fewer survivors than the recipe needs at once: this
+                    // generation can never roll again, and refills can't
+                    // join its window. Waiting for natural death is pure
+                    // dead time - harvest the stragglers now so the whole
+                    // group replants in lockstep next pass.
+                    cells.forEach(function (c) {
+                        if (c.key !== phase.syncSpecies) return;
+                        var id = c.x + "," + c.y;
+                        var t = G.plot[c.y][c.x];
+                        if (t[0] - 1 === syncPlant.id) plan.syncCull[id] = true;
+                        plan.deferred[id] = true;
+                        plan.syncHold[id] = true;
+                    });
+                } else {
+                    cells.forEach(function (c) {
+                        if (c.key !== phase.syncSpecies) return;
+                        if (!G.plot[c.y][c.x][0]) {
+                            var gid = c.x + "," + c.y;
+                            plan.deferred[gid] = true;
+                            plan.syncHold[gid] = true;
+                        }
+                    });
+                }
             }
         }
         // Lazy zones: while some of this phase's parents are still deferred
@@ -865,9 +892,15 @@ function gardenBuildPlan() {
         // working there (e.g. the whiskerbloom hunt keeps rolling on row 1
         // while P10-6's doughshroom spends 42 ticks maturing). Once the
         // deferral lifts, the zone gets claimed and squatters are evicted
-        // with a few ticks to spare before the rolls start.
+        // with a few ticks to spare before the rolls start. Sync-generation
+        // holds do NOT lend: their window is a handful of ticks (or one
+        // pass, for a stranded-survivor cull), so backfill wheat planted
+        // there would be evicted before it ever matures - pure seed waste -
+        // and while enough survivors still roll, the zone must stay open
+        // anyway.
         var hasDeferred = cells.some(function (c) {
-            return plan.deferred[c.x + "," + c.y];
+            var did = c.x + "," + c.y;
+            return plan.deferred[did] && !plan.syncHold[did];
         });
         if (!hasDeferred) {
             zone.forEach(function (c) {
@@ -919,11 +952,18 @@ function gardenBuildPlan() {
     return plan;
 }
 
+// Species vanilla marks noContam: contamination can never overwrite them.
+// (Verified against minigameGarden.js - notably crumbspore/doughshroom are
+// NOT immune; contam plants happily overwrite each other's sprouts.)
+var GARDEN_CONTAM_IMMUNE = {
+    elderwort: 1, queenbeet: 1, queenbeetLump: 1,
+    duketater: 1, shriekbulb: 1, everdaisy: 1,
+};
+
 // True if a contaminating plant at (x,y) would endanger a protected sprout:
-// an orthogonally adjacent locked plant that isn't itself contamination-immune
-// (crumbspore/doughshroom have noContam). The sprout is the goal and the
-// parent is replaceable, so such tiles are kept contaminator-free until the
-// sprout is harvested.
+// an orthogonally adjacent locked plant that isn't contamination-immune.
+// The sprout is the goal and the parent is replaceable, so such tiles are
+// kept contaminator-free until the sprout is harvested.
 function gardenContamRisk(x, y) {
     var dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
     for (var i = 0; i < dirs.length; i++) {
@@ -933,7 +973,7 @@ function gardenContamRisk(x, y) {
         var t = G.plot[ny][nx];
         if (!t[0]) continue;
         var p = G.plantsById[t[0] - 1];
-        if (!p.unlocked && p.key !== "crumbspore" && p.key !== "doughshroom") return true;
+        if (!p.unlocked && !GARDEN_CONTAM_IMMUNE[p.key]) return true;
     }
     return false;
 }
@@ -964,6 +1004,14 @@ function gardenCleanupPass(plan) {
             var plant = G.plantsById[tile[0] - 1];
             var age = tile[1];
             var cur = plan.claims[x + "," + y];
+
+            // Stranded sync-generation survivor (fewer left than the recipe
+            // needs at once): harvest now instead of waiting out its death.
+            if (plan.syncCull[x + "," + y] && plant.unlocked) {
+                G.harvest(x, y);
+                gardenLog("cull", plant.key + " @" + x + "," + y + " (stranded sync survivor)");
+                continue;
+            }
 
             // Juicy queenbeet: never removed; a natural death gives no lump, so
             // harvest as soon as it matures (85-99 window).
