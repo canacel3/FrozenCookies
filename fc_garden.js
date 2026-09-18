@@ -313,14 +313,20 @@ gardenPhases.forEach(function (p) {
     }
 });
 
-// Species some phase plants as a parent. A locked sprout of one of these
-// gates further construction (its unlock is what lets the next recipe get
-// built), so the soil logic keeps fertilizer's fast ticks for it. Leaf
-// species (everdaisy, drowsyfern, foolBolete, duketater...) never appear
-// as cells and don't pin the soil. queenbeet is added by hand: the JQB
+// Species a GRID-GATING phase plants as a parent. A locked sprout of one
+// of these gates further construction (its unlock is what lets the next
+// recipe get built), so the soil logic keeps fertilizer's fast ticks for
+// it. Leaf species (everdaisy, foolBolete, duketater...) don't pin, and
+// neither do parents used ONLY by the postponed strip seeds (whiskerbloom,
+// keenmoss...): those hunts overlap the JQB lottery and gate nothing, so
+// the rolling hunts' wood chips win. queenbeet is added by hand: the JQB
 // grid plants it outside the phase table.
 var GARDEN_PARENT_SPECIES = { queenbeet: true };
 gardenPhases.forEach(function (p) {
+    var stripOnly = (p.targets || []).length && p.targets.every(function (t) {
+        return GARDEN_STRIP_SEEDS.indexOf(t) !== -1;
+    });
+    if (stripOnly) return;
     (p.cells || []).forEach(function (c) { GARDEN_PARENT_SPECIES[c.key] = true; });
 });
 
