@@ -150,6 +150,21 @@ var gardenPhases = [
     { id: "P9", targets: ["elderwort"],
         cells: gardenRow("cronerice", 4, GARDEN_X_EVEN).concat(gardenRow("shimmerlily", 4, GARDEN_X_ODD)),
         zone: gardenZoneRows([3, 5], GARDEN_X_ALL) },
+    // Established goldenClover field: once the synchronized 20-clover
+    // cohort is planted (by the P14 entry further down, in the queenbeet
+    // sprout window), it holds the whole board against later-reviving
+    // hunts until goldenClover sprouts - nibbling tiles from the cohort
+    // breaks both the generation sync and the site cluster (a mushroom
+    // hunt reviving mid-field once tore out the entire crop). This early
+    // twin only activates while clovers stand on the plots; the moment
+    // the sprout appears both entries complete and the board hands over
+    // to foolBolete & co.
+    { id: "P14", targets: ["goldenClover"], rollNeeds: { clover: 4 }, syncSpecies: "clover",
+        when: function () {
+            return !!FrozenCookies.gardenCloverHold;
+        },
+        cells: gardenP14Cells(),
+        zone: gardenP14Zone() },
     { id: "P10-1", targets: ["greenRot"],
         cells: gardenRow("whiteMildew", 1, GARDEN_X_EVEN).concat(gardenRow("clover", 1, GARDEN_X_ODD)),
         zone: gardenZoneRows([0, 2], GARDEN_X_ALL) },
@@ -484,6 +499,23 @@ function gardenBuildPlan() {
         GARDEN_X_ALL.forEach(function (x) {
             claim(x, 5, "plant", "elderwort", "shelf");
         });
+    }
+
+    // Sticky hold for an established goldenClover field (see the early P14
+    // twin in the phase table): 10+ clovers on the plots arm it, the
+    // golden sprout/unlock (or the post-sacrifice reset) disarm it. The
+    // threshold ignores stray clovers from earlier hunts (P10-1 plants 3
+    // on plot tiles), and stickiness keeps the hold alive through the
+    // brief all-dead gap when a synchronized generation dies and replants.
+    if (have("goldenClover") || !gardenUnlocked("clover")) {
+        FrozenCookies.gardenCloverHold = false;
+    } else {
+        var cloverId = G.plants.clover.id;
+        var cloverOnPlots = 0;
+        GARDEN_P14_PLOTS.forEach(function (c) {
+            if (G.plot[c[1]][c[0]][0] - 1 === cloverId) cloverOnPlots++;
+        });
+        if (cloverOnPlots >= 10) FrozenCookies.gardenCloverHold = true;
     }
 
     // Fixture: cronerice trio, planted in P2 and kept while any recipe that
