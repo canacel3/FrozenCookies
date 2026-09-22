@@ -234,7 +234,7 @@ var gardenPhases = [
     // Its corners can only ever fire for ichorpuff (elder x1 + crumb x1);
     // everdaisy needs 3+3 which corners can't see, so once ichorpuff is
     // secured they're released to the CpS backfill.
-    { id: "P13b", targets: ["everdaisy"], aux: true,
+    { id: "P13b", targets: ["everdaisy"], aux: true, requireHave: ["queenbeet"],
         cells: gardenRow("elderwort", 1, GARDEN_X_ALL),
         zone: function (have) {
             return have("ichorpuff")
