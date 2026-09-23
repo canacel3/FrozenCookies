@@ -289,7 +289,10 @@ var gardenPhases = [
         cells: gardenStripCells("chocoroot", "keenmoss"), zone: gardenStripZone() },
     { id: "S-whiskerbloom", targets: ["whiskerbloom"], strip: true,
         cells: gardenStripCells("shimmerlily", "whiteChocoroot"), zone: gardenStripZone() },
+    // Same-species x2 recipe: the whole L (both arms) replants as one
+    // generation, like the full-width P16-4 form.
     { id: "S-nursetulip", targets: ["nursetulip"], strip: true,
+        syncSpecies: "whiskerbloom", rollNeeds: { whiskerbloom: 2 },
         cells: gardenStripCells("whiskerbloom", "whiskerbloom"), zone: gardenStripZone() },
     { id: "S-chimerose", targets: ["chimerose"], strip: true,
         cells: gardenStripCells("shimmerlily", "whiskerbloom"), zone: gardenStripZone() },
