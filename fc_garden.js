@@ -585,6 +585,21 @@ function gardenBuildPlan() {
         var qbId = G.plants["queenbeet"].id;
         for (var gy = 0; gy < 6; gy++) {
             for (var gx = 0; gx < 6; gx++) {
+                // Retirement: the grid stops claiming ground it doesn't
+                // need (only the JQB, its ring, P15c and the still-living
+                // beets stay claimed). ~25 tiles fall to the ordinary
+                // phase loop, so any remaining postponed hunts (P16-x)
+                // build FULL-WIDTH rigs there during the day-long JQB
+                // maturation - far faster than the 2-gap strip - and the
+                // final CpS backfill wheats whatever they don't take.
+                if (plan.gridRetire) {
+                    if (plan.claims[gx + "," + gy]) continue;
+                    if (G.plot[gy][gx][0] - 1 === qbId) {
+                        claim(gx, gy, "plant", "queenbeet", "P15-grid");
+                        gridCells.push({ key: "queenbeet", x: gx, y: gy });
+                    }
+                    continue;
+                }
                 if (gx === 5 || gy === 5) {
                     if (plan.claims[gx + "," + gy]) continue; // P15c row / JQB ring
                     if (gy === 5 && (stripOpen || !gridLate)) {
@@ -600,18 +615,10 @@ function gardenBuildPlan() {
                     continue;
                 }
                 if (gx % 2 === 1 && gy % 2 === 1) {
-                    if (plan.gridRetire && gardenUnlocked("bakerWheat")) {
-                        claim(gx, gy, "plant", "bakerWheat", "P15-cps");
-                    } else {
-                        claim(gx, gy, "zone", null, "P15-grid");
-                    }
+                    claim(gx, gy, "zone", null, "P15-grid");
                     continue;
                 }
-                if (plan.claims[gx + "," + gy]) continue; // JQB / ring / (5,5) wheat
-                if (plan.gridRetire && G.plot[gy][gx][0] - 1 !== qbId) {
-                    claim(gx, gy, "plant", "bakerWheat", "P15-cps");
-                    continue;
-                }
+                if (plan.claims[gx + "," + gy]) continue; // JQB / ring
                 claim(gx, gy, "plant", "queenbeet", "P15-grid");
                 gridCells.push({ key: "queenbeet", x: gx, y: gy });
             }
@@ -666,7 +673,10 @@ function gardenBuildPlan() {
     gardenPhases.forEach(function (phase) {
         if (phase.targets.every(have)) return; // done (unlocked or sprouted)
         if (phase.strip && !plan.gridActive) return; // strip forms only run beside the grid
-        if (!phase.strip && plan.gridActive) return; // the grid owns the board otherwise
+        // During the spawn wait the grid owns rows 0-4 (only the strip runs
+        // beside it); once it retires (JQB growing, duke secured) the board
+        // opens up and the normal full-width forms hunt the leftovers.
+        if (!phase.strip && plan.gridActive && !plan.gridRetire) return;
         if (phase.weed) {
             plan.weedActive = true;
             // The x4-5 spawn corridor is only needed while meddleweed itself
@@ -1008,9 +1018,10 @@ function gardenBuildPlan() {
         for (var cy = 0; cy < 6; cy++) {
             for (var cx = 0; cx < 6; cx++) {
                 if (plan.claims[cx + "," + cy]) continue;
-                // While duketater/shriekbulb are still hunted, unclaimed
-                // grid-border tiles are roll sites, not idle ground.
-                if (plan.gridActive && !plan.gridLate && (cx === 5 || cy === 5)) continue;
+                // While duketater/shriekbulb are still hunted (and the grid
+                // hasn't retired), unclaimed grid-border tiles are roll
+                // sites, not idle ground.
+                if (plan.gridActive && !plan.gridRetire && !plan.gridLate && (cx === 5 || cy === 5)) continue;
                 var ct = G.plot[cy][cx];
                 if (ct[0] && !G.plantsById[ct[0] - 1].unlocked) continue; // protected sprout
                 claim(cx, cy, "plant", "bakerWheat", "cps-backfill");
@@ -1238,7 +1249,13 @@ function gardenSoilPass(plan) {
         // scattered across the field don't count until some empty tile sees
         // all four at once.
         var anyRolling = plan.active.some(function (entry) {
-            if (entry.phase.aux || !entry.cells.length) return false;
+            // Strip hunts gate nothing (they overlap the JQB wait by
+            // design), so they never justify wood chips: while the grid
+            // generation grows, fertilizer compresses the whole cycle
+            // (same tick count, 3-min ticks instead of 5-min); once the
+            // beets mature, the holes themselves are roll sites and flip
+            // the soil - the strip rides along in that window.
+            if (entry.phase.aux || entry.phase.strip || !entry.cells.length) return false;
             var need = entry.phase.rollNeeds || {};
             var required = {};
             entry.cells.forEach(function (c) {
