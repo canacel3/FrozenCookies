@@ -48,16 +48,24 @@ var GARDEN_STRIP_SEEDS = ["keenmoss", "drowsyfern", "whiskerbloom", "nursetulip"
 var GARDEN_FUNGUS_TARGETS = ["whiteMildew", "greenRot", "wrinklegill",
     "glovemorel", "cheapcap", "doughshroom", "foolBolete", "ichorpuff"];
 
-// Strip layout A@0,gap,B@2,A@3,gap,B@5: both gaps see one A and one B (or
-// two of the same species when a === b).
+// L-shaped strip along the grid border: both arms read A,gap,B,A,gap,B -
+// row 5 left-to-right and column 5 top-to-bottom, sharing the corner
+// (5,5) as the column's final B. Every gap sees one A and one B (or two
+// of the species when a === b), 4 roll tiles total - double the old
+// row-only form. The cost is duketater roll sites during beet mature
+// windows: 8 (4 holes + 4 strip gaps, all of which touch inner beets)
+// instead of 11 with an empty column, still ~30%/window - comfortably
+// ahead of the JQB.
 function gardenStripCells(a, b) {
     return [
         { key: a, x: 0, y: 5 }, { key: b, x: 2, y: 5 },
         { key: a, x: 3, y: 5 }, { key: b, x: 5, y: 5 },
+        { key: a, x: 5, y: 0 }, { key: b, x: 5, y: 2 },
+        { key: a, x: 5, y: 3 },
     ];
 }
 function gardenStripZone() {
-    return [{ x: 1, y: 5 }, { x: 4, y: 5 }];
+    return [{ x: 1, y: 5 }, { x: 4, y: 5 }, { x: 5, y: 1 }, { x: 5, y: 4 }];
 }
 
 function gardenRow(key, y, xs) {
@@ -602,15 +610,15 @@ function gardenBuildPlan() {
                 }
                 if (gx === 5 || gy === 5) {
                     if (plan.claims[gx + "," + gy]) continue; // P15c row / JQB ring
-                    if (gy === 5 && (stripOpen || !gridLate)) {
-                        continue; // strip phases claim row 5; leftovers stay open
+                    if (stripOpen || !gridLate) {
+                        // The L-shaped strip claims its border cells in the
+                        // phase loop; the rest stays open as duketater roll
+                        // sites (the backfill skips the border, so no claim
+                        // is needed to protect them).
+                        continue;
                     }
-                    if (gridLate) {
-                        if (gardenUnlocked("bakerWheat")) {
-                            claim(gx, gy, "plant", "bakerWheat", "P15-cps");
-                        }
-                    } else {
-                        claim(gx, gy, "zone", null, "P15-grid"); // duketater roll site
+                    if (gardenUnlocked("bakerWheat")) {
+                        claim(gx, gy, "plant", "bakerWheat", "P15-cps");
                     }
                     continue;
                 }
