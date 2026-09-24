@@ -360,6 +360,12 @@ function gardenUnlocked(key) {
     return !!(G.plants[key] && G.plants[key].unlocked);
 }
 
+// Average aging per tick (ageTick + half the random component): the common
+// currency for "how many ticks until this matures" estimates.
+function gardenAvgTick(plant) {
+    return plant.ageTick + plant.ageTickR / 2;
+}
+
 function gardenNeighbors(x, y) {
     var out = [];
     for (var dy = -1; dy <= 1; dy++) {
@@ -889,7 +895,8 @@ function gardenBuildPlan() {
         // <=70) when the slowest partner matures. Fixture tiles (trio/shelf)
         // plant on their own terms.
         cells.forEach(function (c) {
-            var mine = plan.claims[c.x + "," + c.y];
+            var id = c.x + "," + c.y;
+            var mine = plan.claims[id];
             if (!mine || mine.phase !== phase.id) return;
             // Per partner species the wait is until ANY ONE of its plants
             // within pairing range is mature - pairing range = Chebyshev
@@ -906,13 +913,12 @@ function gardenBuildPlan() {
                 if (o.key === c.key) return;
                 if (Math.abs(o.x - c.x) > 2 || Math.abs(o.y - c.y) > 2) return;
                 var p = G.plants[o.key];
-                var avg = p.ageTick + p.ageTickR / 2;
                 var t = G.plot[o.y][o.x];
                 var ticks;
                 if (t[0] - 1 === p.id) {
-                    ticks = t[1] >= p.mature ? 0 : (p.mature - t[1]) / avg;
+                    ticks = t[1] >= p.mature ? 0 : (p.mature - t[1]) / gardenAvgTick(p);
                 } else {
-                    ticks = p.mature / avg; // empty or junk: a full regrow
+                    ticks = p.mature / gardenAvgTick(p); // empty or junk: a full regrow
                 }
                 if (!(o.key in partnerBest) || ticks < partnerBest[o.key]) {
                     partnerBest[o.key] = ticks;
@@ -923,9 +929,45 @@ function gardenBuildPlan() {
                 partnerTicks = Math.max(partnerTicks, partnerBest[k]);
             });
             var self = G.plants[c.key];
-            var selfAvg = self.ageTick + self.ageTickR / 2;
-            if (selfAvg * partnerTicks > 70) {
-                plan.deferred[c.x + "," + c.y] = true;
+            var selfAvg = gardenAvgTick(self);
+            // Roll-tile availability: a parent is worthless while every
+            // mutation tile it touches is squatted by a locked sprout (the
+            // sprout is harvested at maturity, so the block has a known
+            // end). The wait until the NEAREST-to-open adjacent roll tile
+            // frees up joins the deferral formula, so a dead parent isn't
+            // replanted into a blocked position, and the replacement is
+            // timed to be mature right when the tile opens.
+            var gapTicks = 0;
+            if (zone.length) {
+                var bestGap = -1;
+                zone.forEach(function (z) {
+                    if (bestGap === 0) return;
+                    if (Math.abs(z.x - c.x) > 1 || Math.abs(z.y - c.y) > 1) return;
+                    var zt = G.plot[z.y][z.x];
+                    var w = 0;
+                    if (zt[0]) {
+                        var zp = G.plantsById[zt[0] - 1];
+                        // unlocked junk is cleaned within a tick -> no wait
+                        if (!zp.unlocked) w = Math.max(0, (zp.mature - zt[1]) / gardenAvgTick(zp));
+                    }
+                    if (bestGap < 0 || w < bestGap) bestGap = w;
+                });
+                if (bestGap > 0) gapTicks = bestGap;
+            }
+            // Long block (hours): lend the parent tile to a Baker's wheat
+            // instead of holding it empty - it pays for itself (mature in
+            // ~8 ticks, +1% CpS after) and is evicted in time for the
+            // parent to regrow against the sprout's harvest. Living
+            // parents are never ripped out for this (they die on their
+            // own long before such a block ends), and sync-generation
+            // phases keep their lockstep logic instead.
+            var holdsParent = G.plot[c.y][c.x][0] - 1 === self.id;
+            if (!phase.syncSpecies && !holdsParent && gapTicks > 25 && gardenUnlocked("bakerWheat")) {
+                plan.claims[id] = { kind: "plant", key: "bakerWheat", phase: phase.id };
+                return;
+            }
+            if (selfAvg * Math.max(partnerTicks, gapTicks) > 70) {
+                plan.deferred[id] = true;
             }
         });
         // Recipes needing two mature plants of the SAME species drift out of
