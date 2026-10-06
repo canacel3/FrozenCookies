@@ -379,6 +379,29 @@ function gardenNeighbors(x, y) {
     return out;
 }
 
+// True while mutation rolls can already land on zone tile z: every parent
+// species of the recipe (rollNeeds count, default 1) has enough of the
+// phase's cells in the 3x3 around z holding a plant that is mature or
+// within ~5 ticks of it. The lead matches the eviction margin ("a few
+// ticks to spare") and also covers any-age recipes, whose fast-maturing
+// parents (brown mold) cross it within a tick or two of planting.
+function gardenZoneTileLive(z, cells, rollNeeds) {
+    var species = {};
+    var ready = {};
+    cells.forEach(function (c) {
+        species[c.key] = true;
+        if (Math.abs(c.x - z.x) > 1 || Math.abs(c.y - z.y) > 1) return;
+        var p = G.plants[c.key];
+        var t = G.plot[c.y][c.x];
+        if (t[0] - 1 !== p.id) return;
+        if (p.mature - t[1] > 5 * gardenAvgTick(p)) return;
+        ready[c.key] = (ready[c.key] || 0) + 1;
+    });
+    return Object.keys(species).every(function (k) {
+        return (ready[k] || 0) >= ((rollNeeds && rollNeeds[k]) || 1);
+    });
+}
+
 function gardenLog(action, detail) {
     if (!window.gardenBotLog) window.gardenBotLog = [];
     window.gardenBotLog.push({ time: Date.now(), action: action, detail: detail });
@@ -683,8 +706,30 @@ function gardenBuildPlan() {
                 var lateGap = t[0] === 0 && plan.gridMedian > 20;
                 if (lateGap || outlier) plan.deferred[c.x + "," + c.y] = true;
             });
+            // The generation's JQB odds live only in complete rings: a hole
+            // whose 8 neighbors can still be mature together. Once the
+            // cohort is past the refill line (a fresh plant could no longer
+            // join its mature window) and deaths have broken every ring,
+            // the survivors can never roll a JQB again - waiting for the
+            // half-gone threshold is pure dead time. Cull them now (a
+            // mature beet harvested pays its 1h-CpS yield; natural death
+            // pays nothing) and replant the whole grid in lockstep.
+            if (plan.gridMedian > 100 - G.plants["queenbeet"].mature - 5) {
+                var ringAlive = [[1, 1], [3, 1], [1, 3], [3, 3]].some(function (h) {
+                    return gardenNeighbors(h[0], h[1]).every(function (n) {
+                        var t = G.plot[n.y][n.x];
+                        return t[0] - 1 === qbId && Math.abs(t[1] - plan.gridMedian) <= 20;
+                    });
+                });
+                if (!ringAlive) plan.gridCull = true;
+            }
         }
-        plan.active.push({ phase: { id: "P15-grid" }, cells: gridCells });
+        // For the soil logic a grid "roll site" is a hole with its FULL
+        // ring mature (JQB needs queenbeet M x8), not any tile that sees
+        // one mature beet. Fertilizer thus holds through the whole regrow,
+        // compressing the generation cycle, and wood chips take over at
+        // the exact moment a complete ring starts rolling.
+        plan.active.push({ phase: { id: "P15-grid", rollNeeds: { queenbeet: 8 } }, cells: gridCells });
     }
 
     gardenPhases.forEach(function (phase) {
@@ -1019,13 +1064,20 @@ function gardenBuildPlan() {
             }
         }
         // Lazy zones: while some of this phase's parents are still deferred
-        // (waiting on a slow partner), no mutation can land anyway, so the
-        // mutation rows stay unclaimed and a later phase or filler can keep
-        // working there (e.g. the whiskerbloom hunt keeps rolling on row 1
-        // while P10-6's doughshroom spends 42 ticks maturing). Once the
-        // deferral lifts, the zone gets claimed and squatters are evicted
-        // with a few ticks to spare before the rolls start. Sync-generation
-        // holds do NOT lend: their window is a handful of ticks (or one
+        // (waiting on a slow partner), the mutation rows are mostly idle, so
+        // they stay unclaimed and a later phase or filler can keep working
+        // there (e.g. the whiskerbloom hunt keeps rolling on row 1 while
+        // P10-6's doughshroom spends 42 ticks maturing). Once the deferral
+        // lifts, the zone gets claimed and squatters are evicted with a few
+        // ticks to spare before the rolls start. But a deferral somewhere in
+        // the phase doesn't kill the whole zone: with the trio's right half
+        // mature while the left cronerice pair regrows, P9's only live
+        // elderwort tiles are (3,5)-(5,5), and lending them squats the
+        // active roll sites. So tiles whose surrounding parents can already
+        // roll stay claimed even mid-deferral (reclaiming them from a
+        // borrower early - the lending contract cuts both ways) and only
+        // the genuinely dead remainder is lent. Sync-generation holds do
+        // NOT lend at all: their window is a handful of ticks (or one
         // pass, for a stranded-survivor cull), so backfill wheat planted
         // there would be evicted before it ever matures - pure seed waste -
         // and while enough survivors still roll, the zone must stay open
@@ -1034,11 +1086,11 @@ function gardenBuildPlan() {
             var did = c.x + "," + c.y;
             return plan.deferred[did] && !plan.syncHold[did];
         });
-        if (!hasDeferred) {
-            zone.forEach(function (c) {
+        zone.forEach(function (c) {
+            if (!hasDeferred || gardenZoneTileLive(c, cells, phase.rollNeeds)) {
                 claim(c.x, c.y, "zone", null, phase.id);
-            });
-        }
+            }
+        });
         cells.concat(zone).forEach(function (c) {
             plan.territory[c.x + "," + c.y] = true;
         });
