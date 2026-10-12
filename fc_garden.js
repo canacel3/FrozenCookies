@@ -667,9 +667,9 @@ function gardenBuildPlan() {
         // ticks and the holes need 5-8 of them mature AT ONCE, so replanting
         // each death individually drifts the cohort out of phase and kills
         // the odds. Mid-generation gaps stay empty (a late plant could never
-        // mature before the cohort dies anyway); once more than half the
-        // generation is gone, the stragglers are culled and the whole grid
-        // replants in lockstep.
+        // mature before the cohort dies anyway); the full reset waits until
+        // EVERY hole's ring is broken - as long as one complete ring
+        // survives, that hole can still roll a JQB and the grid is held.
         if (plan.gridRetire) {
             // hold each retiring beet's tile for the pass it's harvested in;
             // the next pass reclaims it as wheat
@@ -679,16 +679,12 @@ function gardenBuildPlan() {
         }
 
         var qbAges = [];
-        var qbEmpty = 0;
         gridCells.forEach(function (c) {
             var t = G.plot[c.y][c.x];
             if (t[0] - 1 === qbId) qbAges.push(t[1]);
-            else if (t[0] === 0) qbEmpty++;
         });
         if (plan.gridRetire) {
             // no generation management while winding down
-        } else if (qbAges.length > 0 && qbEmpty > qbAges.length) {
-            plan.gridCull = true; // most of the generation is gone: full reset
         } else if (qbAges.length > 0) {
             // The mature window is ages 80-100, so a beet more than 20 age
             // units from the cohort median can never be mature together with
@@ -710,10 +706,11 @@ function gardenBuildPlan() {
             // whose 8 neighbors can still be mature together. Once the
             // cohort is past the refill line (a fresh plant could no longer
             // join its mature window) and deaths have broken every ring,
-            // the survivors can never roll a JQB again - waiting for the
-            // half-gone threshold is pure dead time. Cull them now (a
-            // mature beet harvested pays its 1h-CpS yield; natural death
-            // pays nothing) and replant the whole grid in lockstep.
+            // the survivors can never roll a JQB again - holding them is
+            // pure dead time. Cull them now (a mature beet harvested pays
+            // its 1h-CpS yield; natural death pays nothing) and replant the
+            // whole grid in lockstep. Until then no matter how much of the
+            // grid has died, one intact ring is reason enough to hold.
             if (plan.gridMedian > 100 - G.plants["queenbeet"].mature - 5) {
                 var ringAlive = [[1, 1], [3, 1], [1, 3], [3, 3]].some(function (h) {
                     return gardenNeighbors(h[0], h[1]).every(function (n) {
