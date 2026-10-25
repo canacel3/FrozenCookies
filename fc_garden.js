@@ -242,7 +242,13 @@ var gardenPhases = [
     // Its corners can only ever fire for ichorpuff (elder x1 + crumb x1);
     // everdaisy needs 3+3 which corners can't see, so once ichorpuff is
     // secured they're released to the CpS backfill.
-    { id: "P13b", targets: ["everdaisy"], aux: true, requireHave: ["queenbeet"],
+    // Same fungus gate as P13: an elderwort row on y=1 would otherwise sit
+    // on the row-1 mutation zone of the split-form mushroom hunts
+    // (P10-2..P10-6), whose lane-2 mirror is blocked by the shelf - a
+    // deadlock, since P13 itself waits for those mushrooms (this stalled
+    // a foolBolete hunt).
+    { id: "P13b", targets: ["everdaisy"], aux: true,
+        requireHave: ["queenbeet"].concat(GARDEN_FUNGUS_TARGETS),
         cells: gardenRow("elderwort", 1, GARDEN_X_ALL),
         zone: function (have) {
             return have("ichorpuff")
