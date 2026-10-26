@@ -451,6 +451,7 @@ function gardenBuildPlan() {
         syncCull: {}, // "x,y" -> true: stranded sync-generation survivor, harvest now
         syncHold: {}, // "x,y" -> true: sync-generation gap; skip planting but DON'T lend the zone
         thinDup: {}, // "x,y" -> true: duplicate locked sprout squatting a JQB hole
+        occupied: {}, // "x,y" -> true: tile held a plant when this plan was built
         jqb: null,
     };
 
@@ -472,6 +473,7 @@ function gardenBuildPlan() {
         for (var jx = 0; jx < 6; jx++) {
             var jt = G.plot[jy][jx];
             if (!jt[0]) continue;
+            plan.occupied[jx + "," + jy] = true;
             present[G.plantsById[jt[0] - 1].key] = true;
             if (jt[0] - 1 === jqbId) {
                 plan.jqb = { x: jx, y: jy, age: jt[1] };
@@ -1300,6 +1302,12 @@ function gardenPlantPass(plan) {
         var c = plan.claims[id];
         if (c.kind !== "plant") return;
         if (plan.deferred[id]) return;
+        // A tile the cleanup pass just emptied was claimed for what stood on
+        // it, not for what should replace it (e.g. a generation reset culls
+        // the JQB ring's queenbeets, whose claim still says queenbeet, while
+        // the next plan would claim them as elderwort): leave it for the
+        // next pass's fresh plan.
+        if (plan.occupied[id]) return;
         var xy = id.split(",");
         var x = Number(xy[0]);
         var y = Number(xy[1]);
