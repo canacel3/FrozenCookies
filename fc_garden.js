@@ -719,13 +719,30 @@ function gardenBuildPlan() {
             // its 1h-CpS yield; natural death pays nothing) and replant the
             // whole grid in lockstep. Until then no matter how much of the
             // grid has died, one intact ring is reason enough to hold.
+            // While a JQB grows (only before duketater is secured - after
+            // that the grid retires) no ring can ever be complete again:
+            // every hole's ring includes (2,2), which the JQB's elderwort
+            // ring takes. The generation then lives for duketater (queenbeet
+            // M x2), so hold while any empty tile still sees two cohort
+            // beets.
             if (plan.gridMedian > 100 - G.plants["queenbeet"].mature - 5) {
-                var ringAlive = [[1, 1], [3, 1], [1, 3], [3, 3]].some(function (h) {
-                    return gardenNeighbors(h[0], h[1]).every(function (n) {
-                        var t = G.plot[n.y][n.x];
-                        return t[0] - 1 === qbId && Math.abs(t[1] - plan.gridMedian) <= 20;
+                var inCohort = function (n) {
+                    var t = G.plot[n.y][n.x];
+                    return t[0] - 1 === qbId && Math.abs(t[1] - plan.gridMedian) <= 20;
+                };
+                var ringAlive;
+                if (plan.jqb) {
+                    ringAlive = GARDEN_X_ALL.some(function (ry) {
+                        return GARDEN_X_ALL.some(function (rx) {
+                            return !G.plot[ry][rx][0] &&
+                                gardenNeighbors(rx, ry).filter(inCohort).length >= 2;
+                        });
                     });
-                });
+                } else {
+                    ringAlive = [[1, 1], [3, 1], [1, 3], [3, 3]].some(function (h) {
+                        return gardenNeighbors(h[0], h[1]).every(inCohort);
+                    });
+                }
                 if (!ringAlive) plan.gridCull = true;
             }
         }
