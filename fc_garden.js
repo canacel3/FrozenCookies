@@ -246,9 +246,16 @@ var gardenPhases = [
     // on the row-1 mutation zone of the split-form mushroom hunts
     // (P10-2..P10-6), whose lane-2 mirror is blocked by the shelf - a
     // deadlock, since P13 itself waits for those mushrooms (this stalled
-    // a foolBolete hunt).
+    // a foolBolete hunt). ichorpuff is the one fungus left OUT of the
+    // gate: P12 hunts it on lane 2 (crumbspore row 3 + shelf row 5, fixed)
+    // and never needs y=1, so the row goes up during P12 instead - once
+    // mature, row 2 doubles the ichorpuff roll sites (elderwort above +
+    // crumbspore below, all six tiles incl. the corners), and the same
+    // row is already mature when P13 starts instead of spending its first
+    // 8h growing. Lane-1 hunts that outrank P13b (P11a tidygrass...) keep
+    // the row: the aux form only builds when every y=1 tile is unclaimed.
     { id: "P13b", targets: ["everdaisy"], aux: true,
-        requireHave: ["queenbeet"].concat(GARDEN_FUNGUS_TARGETS),
+        requireHave: ["queenbeet"].concat(GARDEN_FUNGUS_TARGETS.filter(function (k) { return k !== "ichorpuff"; })),
         cells: gardenRow("elderwort", 1, GARDEN_X_ALL),
         zone: function (have) {
             return have("ichorpuff")
@@ -725,13 +732,28 @@ function gardenBuildPlan() {
             // ring takes. The generation then lives for duketater (queenbeet
             // M x2), so hold while any empty tile still sees two cohort
             // beets.
+            // The same applies while a protected sprout (a locked species,
+            // e.g. the everdaisy the grid was allowed to start around)
+            // squats a grid cell: (2,2) in particular sits in every ring,
+            // and a reset would only grow the next generation around the
+            // very same sprout (everdaisy matures for ~250 ticks), so the
+            // ring rule would cull every generation at age ~15, bud after
+            // bud. Let the squatted generation grow out for duketater and
+            // shriekbulb (queenbeet M x5) instead. Once the sprout is
+            // harvested its tile is empty, the ring rule returns, and the
+            // whole grid replants in lockstep (unless the cohort is still
+            // young enough for the refill to join it).
+            var squatted = gridCells.some(function (c) {
+                var t = G.plot[c.y][c.x];
+                return t[0] && t[0] - 1 !== qbId && !G.plantsById[t[0] - 1].unlocked;
+            });
             if (plan.gridMedian > 100 - G.plants["queenbeet"].mature - 5) {
                 var inCohort = function (n) {
                     var t = G.plot[n.y][n.x];
                     return t[0] - 1 === qbId && Math.abs(t[1] - plan.gridMedian) <= 20;
                 };
                 var ringAlive;
-                if (plan.jqb) {
+                if (plan.jqb || squatted) {
                     ringAlive = GARDEN_X_ALL.some(function (ry) {
                         return GARDEN_X_ALL.some(function (rx) {
                             return !G.plot[ry][rx][0] &&
